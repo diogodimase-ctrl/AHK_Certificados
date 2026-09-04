@@ -30,7 +30,7 @@ CriarInterfacePrincipal() {
 
     ; ─── CABEÇALHO / HEADER ─────────────────────────────────────────────
     g.SetFont("s15 bold", "Segoe UI")
-    g.Add("Text", "x20 y15 w640 c0A1E38", "🎓 Central de Certificados de Pós-Graduação")
+    g.Add("Text", "x20 y15 w640 cFF00AA", "🎓 Central de Certificados de Pós-Graduação")
     
     g.SetFont("s9", "Segoe UI")
     g.Add("Text", "x20 y45 w640 c555555", "Painel de controle para geração em lote de certificados e envio automático de e-mails aos docentes.")
@@ -39,7 +39,7 @@ CriarInterfacePrincipal() {
 
     ; ─── GRUPO 1: MÓDULOS DE EXECUÇÃO ──────────────────────────────────
     g.SetFont("s10 bold", "Segoe UI")
-    g.Add("GroupBox", "x20 y80 w640 h315 c0A1E38", " ⚡ Módulos de Execução ")
+    g.Add("GroupBox", "x20 y80 w640 h315 cFF00AA", " ⚡ Módulos de Execução ")
 
     ; Botão 1: Fluxo Completo (Destaque)
     g.SetFont("s10 bold", "Segoe UI")
@@ -73,7 +73,7 @@ CriarInterfacePrincipal() {
 
     ; ─── GRUPO 2: ATALHOS RÁPIDOS ───────────────────────────────────────
     g.SetFont("s10 bold", "Segoe UI")
-    g.Add("GroupBox", "x20 y405 w640 h90 c0A1E38", " 📁 Acesso Rápido a Pastas e Nuvem ")
+    g.Add("GroupBox", "x20 y405 w640 h90 cFF00AA", " 📁 Acesso Rápido a Pastas e Nuvem ")
 
     g.SetFont("s9", "Segoe UI")
     btnPastaNuvem := g.Add("Button", "x35 y435 w145 h45", "☁️ SharePoint Einstein`n(Declarações)")
