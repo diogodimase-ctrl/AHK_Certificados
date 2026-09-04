@@ -12,7 +12,7 @@ if !FileExist(A_ScriptDir "\Lib\UIA_Browser.ahk") && FileExist(A_Desktop "\AHK\U
 
 ; ════════════════════════════════════════════════════════════════════════
 ;   UI_Moderna.ahk — Biblioteca de Componentes Visuais Padronizados
-;   Tema: Segoe UI | Fundo #F7F9FC | Destaque #003366
+;   Tema: Segoe UI | Fundo #F5F7FA | Destaque #0A1E38
 ; ════════════════════════════════════════════════════════════════════════
 
 ; ────────────────────────────────────────────────────────────────────────
@@ -21,18 +21,18 @@ if !FileExist(A_ScriptDir "\Lib\UIA_Browser.ahk") && FileExist(A_Desktop "\AHK\U
 ExibirMensagem(titulo, cabecalho, texto, tipo := "info", textoBotao := "Continuar ➔", largura := 580) {
     g := Gui("+AlwaysOnTop -MaximizeBox", titulo)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
-    corCabecalho := "003366"
+    corCabecalho := "0A1E38"
     iconeEmoji := "ℹ️ "
     if (tipo = "erro" || tipo = "error") {
-        corCabecalho := "B00020"
+        corCabecalho := "A61B29"
         iconeEmoji := "⚠️ "
     } else if (tipo = "sucesso" || tipo = "success") {
-        corCabecalho := "1B5E20"
+        corCabecalho := "15633B"
         iconeEmoji := "✅ "
     } else if (tipo = "passo" || tipo = "step") {
-        corCabecalho := "003366"
+        corCabecalho := "0A1E38"
         iconeEmoji := "📌 "
     }
 
@@ -45,7 +45,7 @@ ExibirMensagem(titulo, cabecalho, texto, tipo := "info", textoBotao := "Continua
 
     ; Corpo do texto
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", texto)
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", texto)
 
     ; Botão de Ação
     g.SetFont("s10 bold", "Segoe UI")
@@ -67,18 +67,18 @@ Confirmar(titulo, cabecalho, texto, textoSim := "✅ Sim", textoNao := "❌ Não
 
     g := Gui("+AlwaysOnTop -MaximizeBox", titulo)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     ; Cabeçalho
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "❓ " cabecalho)
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "❓ " cabecalho)
 
     ; Divisor
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
     ; Corpo do texto
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", texto)
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", texto)
 
     ; Botões
     g.SetFont("s10 bold", "Segoe UI")
@@ -109,18 +109,18 @@ PedirTexto(titulo, cabecalho, texto, valorPadrao := "", dica := "", largura := 5
 
     g := Gui("+AlwaysOnTop -MaximizeBox", titulo)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     ; Cabeçalho
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "✏️ " cabecalho)
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "✏️ " cabecalho)
 
     ; Divisor
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
     ; Instrução / Descrição
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", texto)
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", texto)
 
     ; Campo de texto
     g.SetFont("s11", "Segoe UI")
@@ -162,10 +162,10 @@ SelecionarOpcoesUI(titulo, cabecalho, opcoes, unica := false, largura := 580) {
 
     g := Gui("+AlwaysOnTop -MaximizeBox", titulo)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "📋 " cabecalho)
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "📋 " cabecalho)
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
@@ -228,10 +228,10 @@ SelecionarCursosUI(tituloJanela, cabecalho, cursos, largura := 680) {
 
     g := Gui("+AlwaysOnTop -MaximizeBox", tituloJanela)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "🎓 " cabecalho)
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "🎓 " cabecalho)
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
@@ -298,15 +298,15 @@ EscolherCoordenadorUI(lista, infoContexto, largura := 580) {
     resultado := ""
     g := Gui("+AlwaysOnTop -MaximizeBox", "Selecionar Coordenador")
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "✍️ Selecionar Coordenador")
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "✍️ Selecionar Coordenador")
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", infoContexto "`n`nEsta linha possui mais de um coordenador. Selecione quem deve assinar o certificado:")
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", infoContexto "`n`nEsta linha possui mais de um coordenador. Selecione quem deve assinar o certificado:")
 
     lb := g.Add("ListBox", "x20 y+12 w" (largura - 40) " r" Min(lista.Length + 1, 6), lista)
     lb.Choose(1)
@@ -336,18 +336,18 @@ EscolherTituloECargoUI(coordRaw, infoContexto, largura := 580) {
 
     g := Gui("+AlwaysOnTop -MaximizeBox", "Título e Cargo do Coordenador")
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c003366", "🎓 Título e Cargo do Coordenador")
+    g.Add("Text", "x20 y16 w" (largura - 40) " c0A1E38", "🎓 Título e Cargo do Coordenador")
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", infoContexto)
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", infoContexto)
     
     g.SetFont("s10 bold", "Segoe UI")
-    g.Add("Text", "x20 y+10 w" (largura - 40) " c003366", "Coordenador identificado: " coordRaw)
+    g.Add("Text", "x20 y+10 w" (largura - 40) " c0A1E38", "Coordenador identificado: " coordRaw)
 
     g.SetFont("s10 bold", "Segoe UI")
     g.Add("Text", "x20 y+14 w200 c444444", "Título:")
@@ -394,10 +394,10 @@ TelaProblemasUI(resumo, detalhe, largura := 680) {
 
     g := Gui("+AlwaysOnTop -MaximizeBox", "Passo 9 — Validação de Dados")
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s13 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " cB00020", "⚠️ Atenção: Registros com Inconsistências")
+    g.Add("Text", "x20 y16 w" (largura - 40) " cA61B29", "⚠️ Atenção: Registros com Inconsistências")
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
@@ -408,7 +408,7 @@ TelaProblemasUI(resumo, detalhe, largura := 680) {
     g.Add("Edit", "x20 y+10 w" (largura - 40) " r14 ReadOnly -Wrap VScroll", detalhe)
 
     g.SetFont("s10 bold", "Segoe UI")
-    g.Add("Text", "x20 y+12 w" (largura - 40) " c003366", "Como deseja proceder?")
+    g.Add("Text", "x20 y+12 w" (largura - 40) " c0A1E38", "Como deseja proceder?")
 
     btnCorrigir := g.Add("Button", "Default w200 h36 x20 y+8", "🔧 Corrigir um a um")
     btnPular    := g.Add("Button", "w190 h36 x+10", "⏭️ Pular esses itens")
@@ -432,18 +432,18 @@ TelaProblemasUI(resumo, detalhe, largura := 680) {
 ExibirRelatorioFinalUI(titulo, cabecalho, textoResumo, detalheCursos, pastaSaida := "C:\Certificados\", largura := 700) {
     g := Gui("+AlwaysOnTop -MaximizeBox", titulo)
     g.SetFont("s10", "Segoe UI")
-    g.BackColor := "F7F9FC"
+    g.BackColor := "F5F7FA"
 
     g.SetFont("s14 bold", "Segoe UI")
-    g.Add("Text", "x20 y16 w" (largura - 40) " c1B5E20", "🎉 " cabecalho)
+    g.Add("Text", "x20 y16 w" (largura - 40) " c15633B", "🎉 " cabecalho)
 
     g.Add("Text", "x20 y48 w" (largura - 40) " h2 0x10")
 
     g.SetFont("s10 norm", "Segoe UI")
-    g.Add("Text", "x20 y58 w" (largura - 40) " c222222", textoResumo)
+    g.Add("Text", "x20 y58 w" (largura - 40) " c1A1A1A", textoResumo)
 
     g.SetFont("s9 bold", "Segoe UI")
-    g.Add("Text", "x20 y+10 w" (largura - 40) " c003366", "📊 Detalhamento por Curso:")
+    g.Add("Text", "x20 y+10 w" (largura - 40) " c0A1E38", "📊 Detalhamento por Curso:")
 
     g.SetFont("s9", "Consolas")
     g.Add("Edit", "x20 y+6 w" (largura - 40) " r10 ReadOnly -Wrap VScroll", detalheCursos)
