@@ -13,12 +13,15 @@ global PASTA_CERTS       := "C:\Certificados\"
 global PASTA_ASSINATURAS := (INFO_NUVEM["pastaAssinaturas"] != "" && DirExist(INFO_NUVEM["pastaAssinaturas"])) ? INFO_NUVEM["pastaAssinaturas"] : "C:\CAssinaturas\"
 global PASTA_SHAREPOINT  := (INFO_NUVEM["pastaDeclaracoes"] != "") ? INFO_NUVEM["pastaDeclaracoes"] : INFO_NUVEM["raizOneDrive"]
 
-; Nomes padrão dos scripts
-global SCRIPT_GERAR_PADRAO  := "GerarCertificados_v16.ahk"
-global SCRIPT_ENVIAR_PADRAO := "EnviarEmails_v11.ahk"
-global SCRIPT_MANUAL_PADRAO := "Gerar_Manual_v1.ahk"
-global SCRIPT_EXTRA_PADRAO  := "Gerar_Extraordinarios_v2.ahk"
-global SCRIPT_AMBOS_PADRAO  := "GerarEEnviar_v1.ahk"
+; Prefixos dos scripts versionados — o painel sempre executa o arquivo
+; com o MAIOR número de versão encontrado na pasta (ex: GerarCertificados_v17.ahk
+; substitui automaticamente a v16 assim que for colocado na pasta, sem precisar
+; editar este painel). Basta manter o padrão de nome "Prefixo_v<numero>.ahk".
+global PREFIXO_GERAR  := "GerarCertificados_v"
+global PREFIXO_ENVIAR := "EnviarEmails_v"
+global PREFIXO_MANUAL := "Gerar_Manual_v"
+global PREFIXO_EXTRA  := "Gerar_Extraordinarios_v"
+global PREFIXO_AMBOS  := "GerarEEnviar_v"
 
 ; Inicialização e construção da Interface
 CriarInterfacePrincipal()
@@ -118,27 +121,57 @@ CriarInterfacePrincipal() {
 ;   FUNÇÃO PARA LOCALIZAR E EXECUTAR OS SCRIPTS COM TRATAMENTO DE ERRO
 ; ────────────────────────────────────────────────────────────────────────
 
-LocalizarScript(nomeArquivo) {
-    ; Locais de busca prioritários
-    candidatos := [
-        A_ScriptDir "\" nomeArquivo,
-        A_ScriptDir "\CertificadosPosGraduacao\" nomeArquivo,
-        A_ScriptDir "\CertificadosPosGraduacao\CertificadosPosGraduacao\" nomeArquivo,
-        A_Desktop "\" nomeArquivo,
-        A_Desktop "\CertificadosPosGraduacao\CertificadosPosGraduacao\" nomeArquivo,
-        A_Desktop "\AHK\" nomeArquivo,
-        A_Desktop "\Gerar Certificados\Curso normal\" nomeArquivo,
-        A_Desktop "\Gerar Certificados\Envio\" nomeArquivo,
-        A_Desktop "\Gerar Certificados\Certificado extraordinário\" nomeArquivo
+; Pastas onde o painel procura os módulos, em ordem de prioridade.
+ObterPastasBusca() {
+    return [
+        A_ScriptDir,
+        A_ScriptDir "\CertificadosPosGraduacao",
+        A_ScriptDir "\CertificadosPosGraduacao\CertificadosPosGraduacao",
+        A_Desktop,
+        A_Desktop "\CertificadosPosGraduacao\CertificadosPosGraduacao",
+        A_Desktop "\AHK",
+        A_Desktop "\Gerar Certificados\Curso normal",
+        A_Desktop "\Gerar Certificados\Envio",
+        A_Desktop "\Gerar Certificados\Certificado extraordinário"
     ]
+}
 
-    for caminho in candidatos {
+; Varre as pastas de busca atrás de arquivos "Prefixo_v<numero>.ahk" e
+; devolve o caminho do que tiver o MAIOR número de versão. Retorna "" se
+; nenhum arquivo com esse padrão for encontrado.
+LocalizarScriptMaisRecente(prefixo, &versaoEncontrada := "") {
+    melhorCaminho := ""
+    melhorVersao  := -1
+
+    for pasta in ObterPastasBusca() {
+        if !DirExist(pasta)
+            continue
+        Loop Files, pasta "\" prefixo "*.ahk" {
+            if RegExMatch(A_LoopFileName, "i)^" prefixo "(\d+)\.ahk$", &m) {
+                versao := Integer(m[1])
+                if (versao > melhorVersao) {
+                    melhorVersao := versao
+                    melhorCaminho := A_LoopFileFullPath
+                }
+            }
+        }
+    }
+
+    versaoEncontrada := (melhorVersao >= 0) ? melhorVersao : ""
+    return melhorCaminho
+}
+
+; Fallback para nomes fixos/legados, usado quando a busca por versão não
+; encontra nenhum arquivo (ex.: pasta ainda com nome antigo sem número).
+LocalizarScriptPorNome(nomeArquivo) {
+    for pasta in ObterPastasBusca() {
+        caminho := pasta "\" nomeArquivo
         if FileExist(caminho)
             return caminho
     }
 
-    ; Fallback se for extraordinários
-    if (nomeArquivo = SCRIPT_EXTRA_PADRAO) {
+    ; Fallback específico para extraordinários (arquivos avulsos sem padrão de versão)
+    if (nomeArquivo = "Gerar_Extraordinarios") {
         fallbackExtra := [
             A_Desktop "\GerarCertificadosExtraordinarios (1).ahk",
             A_Desktop "\AHK\GerarCertificadosExtraordinarios (1).ahk",
@@ -155,36 +188,43 @@ LocalizarScript(nomeArquivo) {
 }
 
 ExecutarModulo(tipo, guiObj, statusCtrl, botoes) {
-    nomeScript := ""
+    prefixoScript := ""
     tituloModulo := ""
 
     switch tipo {
         case "gerar":
-            nomeScript := SCRIPT_GERAR_PADRAO
+            prefixoScript := PREFIXO_GERAR
             tituloModulo := "Geração de Certificados"
         case "enviar":
-            nomeScript := SCRIPT_ENVIAR_PADRAO
+            prefixoScript := PREFIXO_ENVIAR
             tituloModulo := "Envio de E-mails"
         case "manual":
-            nomeScript := SCRIPT_MANUAL_PADRAO
+            prefixoScript := PREFIXO_MANUAL
             tituloModulo := "Certificado Manual (Correção)"
         case "extra":
-            nomeScript := SCRIPT_EXTRA_PADRAO
+            prefixoScript := PREFIXO_EXTRA
             tituloModulo := "Certificados Extraordinários"
         case "ambos":
-            nomeScript := SCRIPT_AMBOS_PADRAO
+            prefixoScript := PREFIXO_AMBOS
             tituloModulo := "Fluxo Completo (Gerar + Enviar)"
     }
 
-    caminho := LocalizarScript(nomeScript)
+    versaoDetectada := ""
+    caminho := LocalizarScriptMaisRecente(prefixoScript, &versaoDetectada)
+
+    ; Nada encontrado pelo padrão "Prefixo_v<numero>.ahk" — tenta nome legado
+    if (caminho = "")
+        caminho := LocalizarScriptPorNome(prefixoScript "1.ahk")
+    if (caminho = "" && tipo = "extra")
+        caminho := LocalizarScriptPorNome("Gerar_Extraordinarios")
 
     if (caminho = "") {
         MsgBox(
-            "⚠️ Não foi possível localizar o arquivo:`n`n" nomeScript "`n`n"
+            "⚠️ Não foi possível localizar nenhum arquivo com o padrão:`n`n" prefixoScript "<numero>.ahk`n`n"
             "Na próxima tela, você poderá selecionar o arquivo manualmente.",
             "Arquivo Não Encontrado", "Icon!"
         )
-        caminho := FileSelect(1, A_ScriptDir, "Selecione o arquivo " nomeScript, "*.ahk")
+        caminho := FileSelect(1, A_ScriptDir, "Selecione o arquivo " prefixoScript "*.ahk", "*.ahk")
         if !caminho
             return
     }
@@ -193,7 +233,8 @@ ExecutarModulo(tipo, guiObj, statusCtrl, botoes) {
     for b in botoes
         b.Enabled := false
 
-    statusCtrl.Text := "⏳ Executando: " tituloModulo "..."
+    tituloComVersao := tituloModulo (versaoDetectada != "" ? " (v" versaoDetectada ")" : "")
+    statusCtrl.Text := "⏳ Executando: " tituloComVersao "..."
     
     ; Minimiza temporariamente a interface para dar foco ao módulo executado
     guiObj.Minimize()
@@ -266,7 +307,14 @@ ExibirGuiaAjuda() {
         "   • Executa o Gerador e, ao terminar, segue direto para o Envio.`n`n"
         "4. CERTIFICADOS EXTRAORDINÁRIOS:`n"
         "   • Para planilhas avulsas que não seguem o formato padrão.`n"
-        "   • Permite configurar colunas de docente, data, hora e assinatura na hora."
+        "   • Permite configurar colunas de docente, data, hora e assinatura na hora.`n`n"
+        "VERSIONAMENTO AUTOMÁTICO:`n"
+        "   • O painel sempre executa o arquivo com o MAIOR número de versão`n"
+        "     encontrado na pasta (ex.: GerarCertificados_v17.ahk substitui`n"
+        "     a v16 automaticamente).`n"
+        "   • Para atualizar um módulo, basta colocar o novo arquivo na pasta`n"
+        "     seguindo o padrão 'NomeDoModulo_v<numero>.ahk'. Não precisa`n"
+        "     editar este painel."
     )
     MsgBox(ajudaTexto, "Ajuda — Central de Certificados", "Iconi")
 }
