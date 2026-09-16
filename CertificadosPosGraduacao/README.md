@@ -10,7 +10,7 @@ Sistema integrado de automação em AutoHotkey v2 para geração em lote de cert
   - Dois modos de disparo: Supervisionado (conferência visual rápida + tecla `ENTER`) ou Modo Turbo (autônomo).
   - Controle persistente de envios (`_EnvioControle.txt`) para evitar duplicações e permitir pausas/retomadas seguras.
 
-- Geração em Lote Inteligente (`GerarCertificados_v16.ahk`):
+- Geração em Lote Inteligente (`GerarCertificados_v17.ahk`):
   - Localização dinâmica e leitura da Planilha Mestre (*Controle de Declaração de Aula*) no SharePoint/OneDrive corporativo.
   - Detecção Automática de Colunas na Linha 3 (localiza onde estão docentes, disciplinas e horários sem necessidade de informar letras de colunas).
   - Tratamento nativo de células mescladas verticais e horizontais do Excel.
@@ -19,7 +19,7 @@ Sistema integrado de automação em AutoHotkey v2 para geração em lote de cert
 
 - Módulos Complementares e Utilitários:
   - `PainelControle_Certificados.ahk`: Central visual unificada com atalhos, diagnósticos e status de ambiente.
-  - `GerarEEnviar_v1.ahk`: Esteira contínua (executa a geração em lote e segue imediatamente para a fila de envio).
+  - `GerarEEnviar_v2.ahk`: Esteira contínua (executa a geração em lote e segue imediatamente para a fila de envio).
   - `Gerar_Manual_v1.ahk`: Emissão individual ou correção rápida de certificados avulsos.
   - `Gerar_Extraordinarios_v2.ahk`: Assistente interativo para planilhas personalizadas fora do formato padrão.
   - `UI_Moderna.ahk`: Biblioteca gráfica padronizada (Segoe UI, paleta corporativa `#003366`, diálogos modernos).
@@ -34,9 +34,9 @@ CertificadosPosGraduacao/
 ├── README.md                       # Documentação técnica e guia de uso
 ├── Abrir Painel de Certificados.bat# Inicializador rápido por duplo clique
 ├── PainelControle_Certificados.ahk # Central visual principal do ecossistema
-├── GerarCertificados_v16.ahk       # Geração em lote via SharePoint + PowerPoint COM
+├── GerarCertificados_v17.ahk       # Geração em lote via SharePoint + PowerPoint COM
 ├── EnviarEmails_v11.ahk            # Envio automatizado no Outlook Web (UI Automation)
-├── GerarEEnviar_v1.ahk             # Orquestrador do fluxo completo (Gerar + Enviar)
+├── GerarEEnviar_v2.ahk             # Orquestrador do fluxo completo (Gerar + Enviar)
 ├── Gerar_Manual_v1.ahk             # Emissor manual e correções individuais
 ├── Gerar_Extraordinarios_v2.ahk    # Assistente para planilhas extraordinárias
 ├── UI_Moderna.ahk                  # Componentes visuais e localizador dinâmico de nuvem
@@ -66,9 +66,9 @@ Abrir Painel de Certificados.bat
 
  Método 2: Executar Diretamente o Script Desejado
 - Painel Central: `PainelControle_Certificados.ahk`
-- Apenas Gerar Certificados: `GerarCertificados_v16.ahk`
+- Apenas Gerar Certificados: `GerarCertificados_v17.ahk`
 - Apenas Enviar E-mails: `EnviarEmails_v11.ahk`
-- Fluxo Contínuo: `GerarEEnviar_v1.ahk`
+- Fluxo Contínuo: `GerarEEnviar_v2.ahk`
 
 ---
 
@@ -78,9 +78,9 @@ Abrir Painel de Certificados.bat
 flowchart TD
     A["Abrir Painel de Certificados.bat"] --> B["PainelControle_Certificados.ahk"]
     
-    B -->|Opção 1| C["GerarCertificados_v16.ahk"]
+    B -->|Opção 1| C["GerarCertificados_v17.ahk"]
     B -->|Opção 2| D["EnviarEmails_v11.ahk"]
-    B -->|Opção 3| E["GerarEEnviar_v1.ahk"]
+    B -->|Opção 3| E["GerarEEnviar_v2.ahk"]
     B -->|Opção 4| F["Gerar_Manual_v1.ahk"]
     
     C --> C1["Lê Planilha Mestre (SharePoint)"]
