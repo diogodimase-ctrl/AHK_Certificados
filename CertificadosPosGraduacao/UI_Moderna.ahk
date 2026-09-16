@@ -877,6 +877,19 @@ GarantirPastasSaida(nomeCurso, mesFormatado, semestre := "2026-5") {
     )
 }
 
+; Garante a pasta "Para Enviar\<Curso>\<Mês>\" usada pelo manifesto do Power Automate.
+; Profundidade FIXA em 2 níveis (Curso → Mês), sem nível de semestre — o flow depende
+; dessa estrutura fixa para não precisar de recursão genérica. Não mudar essa profundidade.
+GarantirPastaParaEnviar(nomeCurso, mesFormatado) {
+    info := ObterCaminhosCompartilhados()
+    if (info["pastaDeclaracoes"] = "")
+        return ""
+
+    caminho := info["pastaDeclaracoes"] "Para Enviar\" nomeCurso "\" mesFormatado "\"
+    try DirCreate(caminho)
+    return caminho
+}
+
 ; =========================================================
 ; FUNÇÃO: Formatar horas de texto livre para leitura humana
 ; Aceita: "10 horas", "08h - 18h", "2:30", "4h30", "30min"

@@ -500,6 +500,8 @@ for numCursoAtual, cursoSelecionado in selecionados {
         cursoConfigs.Push(Map(
             "posgrad", cursoSelecionado["posgrad"],
             "unidade", cursoSelecionado["unidade"],
+            "siglaUnidade", cursoSelecionado["siglaUnidade"],
+            "cursoPath", cursoPath,
             "wbCurso", wbCurso,
             "abas", arrAbasCurso,
             "nomePos", nomePos,
@@ -836,13 +838,65 @@ IdentificarColunaAulas(wsAba) {
 DetectarColunasPorAba(wsAba) {
     colNome  := IdentificarColunaDocentes(wsAba)
     colCurso := IdentificarColunaAulas(wsAba)
+    colEmail := IdentificarColunaEmails(wsAba)
 
     if (colNome = "")
         colNome := "E"
     if (colCurso = "")
         colCurso := "D"
+    if (colEmail = "")
+        colEmail := "F"
 
-    return Map("colNome", colNome, "colCurso", colCurso)
+    return Map("colNome", colNome, "colCurso", colCurso, "colEmail", colEmail)
+}
+
+; =========================================================
+; FUNÇÃO: Identificar coluna de e-mails na Linha 3 (mesmo padrão
+; usado por IdentificarColunaDocentes / IdentificarColunaAulas acima)
+; =========================================================
+
+IdentificarColunaEmails(wsAba) {
+    maxCols := 50
+    try {
+        usedCols := wsAba.UsedRange.Columns.Count
+        if (usedCols > maxCols)
+            maxCols := usedCols
+    }
+
+    termos := ["email", "e-mail", "contato", "correio", "eletronico"]
+    Loop maxCols {
+        colIdx := A_Index
+        celVal := ""
+        try celVal := String(wsAba.Cells(3, colIdx).Value)
+        if (celVal = "")
+            try celVal := String(wsAba.Cells(3, colIdx).Text)
+
+        celValNorm := NormalizarTexto(celVal)
+        for t in termos {
+            if InStr(celValNorm, t)
+                return IndiceParaColuna(colIdx)
+        }
+    }
+    return ""
+}
+
+; =========================================================
+; FUNÇÕES: Validação e extração de e-mail (portadas do EnviarEmails_v11.ahk
+; para permitir a montagem do manifesto sem depender de outro script)
+; =========================================================
+
+EmailEhValido(email) {
+    email := Trim(email)
+    if (email = "")
+        return false
+    return RegExMatch(email, "^[^@\s]+@[^@\s]+\.[^@\s]+$") > 0
+}
+
+ExtrairEmailValido(bruto) {
+    bruto := Trim(bruto)
+    if RegExMatch(bruto, "[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}", &m)
+        return m[0]
+    return bruto
 }
 
 ; =========================================================
@@ -1047,7 +1101,7 @@ LerDataCelula(cel) {
 ; FUNÇÃO: Ler um registro (linha) de forma robusta
 ; =========================================================
 
-LerRegistro(wsCurso, linha, colNome, colCurso) {
+LerRegistro(wsCurso, linha, colNome, colCurso, colEmail := "") {
 
     celData    := ResolverCelulaMesclada(wsCurso.Cells(linha, 1))
     celHorario := ResolverCelulaMesclada(wsCurso.Cells(linha, 2))
@@ -1118,13 +1172,25 @@ LerRegistro(wsCurso, linha, colNome, colCurso) {
     suspeitaNomeEmail := InStr(nome, "@") ? true : false
     suspeitaCursoData := (curso != "" && RegExMatch(curso, "^\d{1,2}[/:h]\d")) ? true : false
 
+    ; Leitura do e-mail do docente (usada só na Fase 3, para montar o manifesto).
+    ; Se colEmail não for informado (ex.: chamada da Fase 2/validação), fica em branco.
+    email := ""
+    emailValido := false
+    if (colEmail != "") {
+        emailBruto := ""
+        try emailBruto := Trim(String(wsCurso.Range(colEmail linha).Value))
+        email := ExtrairEmailValido(emailBruto)
+        emailValido := EmailEhValido(email)
+    }
+
     return Map(
         "linha", linha, "nome", nome, "curso", curso, "dataAula", dataAula,
         "horarioTxt", horarioTxt, "horasFormatadas", horasFormatadas,
         "erroNome", erroNome, "erroCurso", erroCurso, "erroData", erroData, "erroHoras", erroHoras,
         "ehRodapeIgnoravel", ehRodapeIgnoravel, "mesclado", mesclado,
         "suspeitaNomeEmail", suspeitaNomeEmail, "suspeitaCursoData", suspeitaCursoData,
-        "suspeitaNomeComExtra", suspeitaNomeComExtra, "nomeOriginalBruto", nomeOriginalBruto
+        "suspeitaNomeComExtra", suspeitaNomeComExtra, "nomeOriginalBruto", nomeOriginalBruto,
+        "email", email, "emailValido", emailValido
     )
 }
 
@@ -1174,11 +1240,12 @@ GerarCertificadosCurso(cfg, ppt, pastaSaidaBase, linhasParaPular) {
 
     for abaNome in cfg["abas"] {
         mesPasta := ConverterMesParaPasta(abaNome)
-        
+
         pastas := GarantirPastasSaida(nomeCursoComUnidade, mesPasta, SEMESTRE_ATUAL)
         pastaNuvemMes := pastas["nuvem"]
         pastaLocalMes := pastas["local"]
         pastaDocentesRaiz := pastas["localDocentes"]
+        pastaParaEnviarMes := GarantirPastaParaEnviar(nomeCursoComUnidade, mesPasta)
 
         wsAba := ObterAba(cfg["wbCurso"], abaNome)
         ultimaLinhaCurso := wsAba.Cells(wsAba.Rows.Count, 1).End(-4162).Row
@@ -1186,6 +1253,11 @@ GerarCertificadosCurso(cfg, ppt, pastaSaidaBase, linhasParaPular) {
         colsAba := DetectarColunasPorAba(wsAba)
         colNomeAba  := colsAba["colNome"]
         colCursoAba := colsAba["colCurso"]
+        colEmailAba := colsAba["colEmail"]
+
+        ; Agrupamento por docente para o manifesto do Power Automate (Fase 3).
+        manifestoDocentes := Map()
+        ordemManifesto := []
 
         Loop ultimaLinhaCurso - 4 {
             linha := A_Index + 4
@@ -1193,7 +1265,7 @@ GerarCertificadosCurso(cfg, ppt, pastaSaidaBase, linhasParaPular) {
             if linhasParaPular.Has(abaNome "|" linha)
                 continue
 
-            reg := LerRegistro(wsAba, linha, colNomeAba, colCursoAba)
+            reg := LerRegistro(wsAba, linha, colNomeAba, colCursoAba, colEmailAba)
 
             if reg["ehRodapeIgnoravel"]
                 continue
@@ -1211,15 +1283,147 @@ GerarCertificadosCurso(cfg, ppt, pastaSaidaBase, linhasParaPular) {
                 "dataAula", reg["dataAula"], "horasFormatadas", reg["horasFormatadas"]
             )
 
-            resultado := GerarCertificado(registro, ppt, cfg["modeloBase"], pastaNuvemMes, pastaLocalMes, pastaDocente, cfg["nomePos"])
-            if resultado
+            caminhoGerado := GerarCertificado(registro, ppt, cfg["modeloBase"], pastaNuvemMes, pastaLocalMes, pastaDocente, pastaParaEnviarMes, cfg["nomePos"])
+            if (caminhoGerado != "") {
                 totalGerados++
-            else
+
+                SplitPath(caminhoGerado, &nomeArquivoGerado)
+                chaveDoc := StrLower(SanitizarNomeArquivo(reg["nome"]))
+
+                if !manifestoDocentes.Has(chaveDoc) {
+                    manifestoDocentes[chaveDoc] := Map(
+                        "nome", reg["nome"], "email", reg["email"], "emailValido", reg["emailValido"], "arquivos", []
+                    )
+                    ordemManifesto.Push(chaveDoc)
+                } else if (!manifestoDocentes[chaveDoc]["emailValido"] && reg["emailValido"]) {
+                    ; Docente já apareceu antes nesta aba sem e-mail válido — aproveita
+                    ; o e-mail válido encontrado agora numa linha posterior do mesmo docente.
+                    manifestoDocentes[chaveDoc]["email"] := reg["email"]
+                    manifestoDocentes[chaveDoc]["emailValido"] := true
+                }
+
+                chaveLinha := reg["dataAula"] "|" reg["horarioTxt"]
+                manifestoDocentes[chaveDoc]["arquivos"].Push(Map("nomeArquivo", nomeArquivoGerado, "chaveLinha", chaveLinha))
+            } else {
                 totalErros++
+            }
         }
+
+        GerarManifestoDoMes(pastaParaEnviarMes, manifestoDocentes, ordemManifesto, cfg, abaNome)
     }
 
     return Map("gerados", totalGerados, "erros", totalErros)
+}
+
+; =========================================================
+; FUNÇÃO: Gerar o manifesto.txt (conteúdo JSON) do mês, se houver
+; ao menos um docente com e-mail válido. Regra de negócio: se
+; NENHUM certificado do lote tiver e-mail válido, o manifesto NÃO
+; é gerado (a pasta fica só com os PDFs).
+; =========================================================
+
+GerarManifestoDoMes(pastaParaEnviarMes, manifestoDocentes, ordemManifesto, cfg, abaNome) {
+    if (pastaParaEnviarMes = "")
+        return
+
+    listaDocentesValidos := []
+    for chaveDoc in ordemManifesto {
+        doc := manifestoDocentes[chaveDoc]
+        if doc["emailValido"]
+            listaDocentesValidos.Push(doc)
+    }
+
+    if (listaDocentesValidos.Length = 0)
+        return
+
+    loteId := FormatTime(A_Now, "yyyyMMddHHmmss") "-" Random(1000, 9999)
+    dataGeracao := FormatTime(A_Now, "yyyy-MM-ddTHH:mm:ss")
+    localSigla := (cfg["siglaUnidade"] != "") ? cfg["siglaUnidade"] : cfg["unidade"]
+
+    jsonTexto := ConstruirManifestoJson(
+        loteId, dataGeracao, cfg["posgrad"], localSigla,
+        pastaParaEnviarMes, cfg["cursoPath"], abaNome, listaDocentesValidos
+    )
+
+    try {
+        EscreverArquivoAtomico(pastaParaEnviarMes "manifesto.txt", jsonTexto)
+    } catch as errManifesto {
+        ExibirMensagem(
+            "Aviso — Manifesto",
+            "Falha ao Gravar Manifesto",
+            "Os certificados foram gerados normalmente, mas houve falha ao gravar o manifesto.txt em:`n`n"
+            pastaParaEnviarMes "`n`nMotivo: " errManifesto.Message,
+            "erro", "Continuar"
+        )
+    }
+}
+
+; =========================================================
+; FUNÇÃO: Montar o texto JSON do manifesto (schema fixo — não mudar
+; os nomes de campo, o flow do Power Automate já está validado neles)
+; =========================================================
+
+ConstruirManifestoJson(loteId, dataGeracao, curso, localUnidade, caminhoPastaPDF, caminhoArquivoExcel, nomeAba, listaDocentes) {
+    json := "{`n"
+    json .= '  "versaoManifesto": 1,' "`n"
+    json .= '  "loteId": "' JsonEscape(loteId) '",' "`n"
+    json .= '  "dataGeracao": "' JsonEscape(dataGeracao) '",' "`n"
+    json .= '  "curso": "' JsonEscape(curso) '",' "`n"
+    json .= '  "local": "' JsonEscape(localUnidade) '",' "`n"
+    json .= '  "caminhoPastaPDF": "' JsonEscape(caminhoPastaPDF) '",' "`n"
+    json .= '  "caminhoArquivoExcel": "' JsonEscape(caminhoArquivoExcel) '",' "`n"
+    json .= '  "nomeAba": "' JsonEscape(nomeAba) '",' "`n"
+    json .= '  "certificados": [' "`n"
+
+    for idx, doc in listaDocentes {
+        json .= "    {`n"
+        json .= '      "docente": "' JsonEscape(doc["nome"]) '",' "`n"
+        json .= '      "email": "' JsonEscape(doc["email"]) '",' "`n"
+        json .= '      "arquivos": [' "`n"
+
+        for idxA, arq in doc["arquivos"] {
+            json .= '        { "nomeArquivo": "' JsonEscape(arq["nomeArquivo"]) '", "chaveLinha": "' JsonEscape(arq["chaveLinha"]) '" }'
+            json .= (idxA < doc["arquivos"].Length) ? ",`n" : "`n"
+        }
+
+        json .= "      ]`n"
+        json .= "    }"
+        json .= (idx < listaDocentes.Length) ? ",`n" : "`n"
+    }
+
+    json .= "  ]`n"
+    json .= "}"
+    return json
+}
+
+JsonEscape(valor) {
+    valor := String(valor)
+    valor := StrReplace(valor, "\", "\\")
+    valor := StrReplace(valor, '"', '\"')
+    valor := StrReplace(valor, "`r`n", "\n")
+    valor := StrReplace(valor, "`n", "\n")
+    valor := StrReplace(valor, "`r", "\n")
+    valor := StrReplace(valor, "`t", "\t")
+    return valor
+}
+
+; Escrita atômica: grava em .tmp e só então renomeia para o nome final,
+; para o Power Automate nunca ler um arquivo pela metade.
+EscreverArquivoAtomico(caminhoFinal, conteudo) {
+    caminhoTmp := caminhoFinal ".tmp"
+    arq := ""
+    try {
+        arq := FileOpen(caminhoTmp, "w", "UTF-8-RAW")
+        if !IsObject(arq)
+            throw Error("Não foi possível criar o arquivo temporário: " caminhoTmp)
+        arq.Write(conteudo)
+        arq.Close()
+        FileMove(caminhoTmp, caminhoFinal, 1)
+    } catch as err {
+        try arq.Close()
+        try FileDelete(caminhoTmp)
+        throw err
+    }
 }
 
 ; =========================================================
@@ -1387,7 +1591,9 @@ CriarModeloBase(ppt, pptModelo, coordUsado, cargo, dataEmissao, assinaturaPath, 
 ; FUNÇÃO: Gerar certificado PDF individual (Nuvem + Backup Local)
 ; =========================================================
 
-GerarCertificado(registro, ppt, pptModelo, pastaNuvemMes, pastaLocalMes, pastaDocente, nomePos) {
+; Retorna o caminho completo do PDF gerado (referência canônica para o manifesto:
+; a cópia em "Para Enviar" quando existir, senão o caminho principal) ou "" em caso de erro.
+GerarCertificado(registro, ppt, pptModelo, pastaNuvemMes, pastaLocalMes, pastaDocente, pastaParaEnviar, nomePos) {
     nome := registro["nome"]
     curso := registro["curso"]
     dataAula := registro["dataAula"]
@@ -1438,10 +1644,20 @@ GerarCertificado(registro, ppt, pptModelo, pastaNuvemMes, pastaLocalMes, pastaDo
             try FileCopy(caminhoPrincipal, caminhoDocente, true)
         }
 
-        return true
+        ; Cópia para "Para Enviar\<Curso>\<Mês>\" (usada pelo Power Automate).
+        ; Vira a referência canônica do arquivo no manifesto, já que é a pasta
+        ; que o flow efetivamente vasculha.
+        caminhoParaManifesto := caminhoPrincipal
+        if (pastaParaEnviar != "" && caminhoPrincipal != "") {
+            caminhoParaEnviarFinal := CaminhoUnico(pastaParaEnviar, nomeBase, ".pdf")
+            try FileCopy(caminhoPrincipal, caminhoParaEnviarFinal, true)
+            caminhoParaManifesto := caminhoParaEnviarFinal
+        }
+
+        return caminhoParaManifesto
     } catch as err {
         ExibirMensagem("Erro na Geração", "Falha no Certificado", "Erro — Aba: " aba " / Linha: " linha "`n`n" err.Message, "erro", "Continuar")
-        return false
+        return ""
     }
 }
 
