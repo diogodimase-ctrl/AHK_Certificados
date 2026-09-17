@@ -851,25 +851,67 @@ LocalizarPlanilhaCursoDinamica(nomeCurso, unidade := "", semestre := "") {
     return ""
 }
 
-; Garante a criação de toda a estrutura de pastas na Nuvem e no Backup Local
+; Procura, dentro de pastaBase, uma subpasta JÁ EXISTENTE cujo nome corresponda a
+; nomeAlvo (comparação tolerante a acento/maiúsculas/espaços). Se encontrar,
+; devolve o caminho da pasta existente (preservando o nome real que já está no
+; SharePoint/OneDrive), para nunca criar uma pasta nova "quase igual" à que já
+; existe. Se não encontrar nada, devolve "".
+EncontrarSubpastaExistente(pastaBase, nomeAlvo) {
+    if !DirExist(pastaBase)
+        return ""
+
+    alvoNorm := NormalizarTexto(nomeAlvo)
+    if (alvoNorm = "")
+        return ""
+
+    ; Comparação por igualdade (após normalizar acento/maiúscula/espaço) — de
+    ; propósito NÃO usa "contém", pra não confundir cursos diferentes que
+    ; compartilham parte do nome (ex.: mesma pós em unidades/siglas distintas).
+    try {
+        Loop Files, RTrim(pastaBase, "\") "\*", "D" {
+            if (NormalizarTexto(A_LoopFileName) = alvoNorm)
+                return A_LoopFileFullPath "\"
+        }
+    } catch {
+    }
+
+    return ""
+}
+
+; Garante uma subpasta dentro de pastaBase: reaproveita uma já existente com nome
+; equivalente (ver EncontrarSubpastaExistente) ou cria uma nova com nomePadrao.
+GarantirSubpasta(pastaBase, nomePadrao) {
+    caminho := EncontrarSubpastaExistente(pastaBase, nomePadrao)
+    if (caminho = "")
+        caminho := RTrim(pastaBase, "\") "\" nomePadrao "\"
+    try DirCreate(caminho)
+    return caminho
+}
+
+; Garante a criação de toda a estrutura de pastas na Nuvem e no Backup Local.
+; Na Nuvem, cada nível (Semestre → Pós-graduação → Mês) primeiro procura uma
+; pasta já existente com esse nome antes de criar uma nova — assim o script
+; sempre usa a pasta que os coordenadores/SharePoint já têm, em vez de gerar
+; uma pasta duplicada por causa de acento/maiúscula/espaço diferente.
 GarantirPastasSaida(nomeCurso, mesFormatado, semestre := "2026-5") {
     info := ObterCaminhosCompartilhados()
-    
-    ; 1. Caminho na Nuvem (SharePoint / OneDrive)
+
+    ; 1. Caminho na Nuvem (SharePoint / OneDrive) — Declarações\Semestre\Pós\Mês\
     caminhoNuvem := ""
     if (info["pastaDeclaracoes"] != "") {
-        caminhoNuvem := info["pastaDeclaracoes"] semestre "\" nomeCurso "\" mesFormatado "\"
-        try DirCreate(caminhoNuvem)
+        pastaSemestre := GarantirSubpasta(info["pastaDeclaracoes"], semestre)
+        pastaCurso    := GarantirSubpasta(pastaSemestre, nomeCurso)
+        caminhoNuvem  := GarantirSubpasta(pastaCurso, mesFormatado)
     }
-    
+
     ; 2. Caminho Local (Backup em C:\Certificados\)
     caminhoLocal := info["pastaLocalCerts"] nomeCurso "\" mesFormatado "\"
     try DirCreate(caminhoLocal)
-    
+
     ; 3. Caminho Local por Docente
     caminhoLocalDocentes := info["pastaLocalCerts"] nomeCurso "\Docentes\"
     try DirCreate(caminhoLocalDocentes)
-    
+
     return Map(
         "nuvem", caminhoNuvem,
         "local", caminhoLocal,
