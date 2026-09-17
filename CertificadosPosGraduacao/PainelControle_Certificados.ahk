@@ -136,16 +136,20 @@ ObterPastasBusca() {
     ]
 }
 
-; Varre as pastas de busca atrás de arquivos "Prefixo_v<numero>.ahk" e
-; devolve o caminho do que tiver o MAIOR número de versão. Retorna "" se
-; nenhum arquivo com esse padrão for encontrado.
+; Varre as pastas de busca EM ORDEM DE PRIORIDADE (ver ObterPastasBusca) atrás
+; de arquivos "Prefixo_v<numero>.ahk". Assim que uma pasta tiver pelo menos um
+; arquivo correspondente, usa o de MAIOR versão só dentro dela e para — pastas
+; de prioridade menor (ex.: Área de Trabalho) nunca sobrepõem a pasta oficial
+; dos scripts, mesmo que tenham um número de versão mais alto (ex.: uma cópia
+; antiga esquecida na Área de Trabalho). Retorna "" se nenhuma pasta tiver
+; arquivo com esse padrão.
 LocalizarScriptMaisRecente(prefixo, &versaoEncontrada := "") {
-    melhorCaminho := ""
-    melhorVersao  := -1
-
     for pasta in ObterPastasBusca() {
         if !DirExist(pasta)
             continue
+
+        melhorCaminho := ""
+        melhorVersao  := -1
         Loop Files, pasta "\" prefixo "*.ahk" {
             if RegExMatch(A_LoopFileName, "i)^" prefixo "(\d+)\.ahk$", &m) {
                 versao := Integer(m[1])
@@ -155,10 +159,15 @@ LocalizarScriptMaisRecente(prefixo, &versaoEncontrada := "") {
                 }
             }
         }
+
+        if (melhorCaminho != "") {
+            versaoEncontrada := melhorVersao
+            return melhorCaminho
+        }
     }
 
-    versaoEncontrada := (melhorVersao >= 0) ? melhorVersao : ""
-    return melhorCaminho
+    versaoEncontrada := ""
+    return ""
 }
 
 ; Fallback para nomes fixos/legados, usado quando a busca por versão não
