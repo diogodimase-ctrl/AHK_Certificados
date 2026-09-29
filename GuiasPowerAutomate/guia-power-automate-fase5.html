@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia Power Automate — Fase 5</title>
+<style>
+  :root {
+    --bg: #f4f6fb; --card-bg: #ffffff; --text: #1c2333; --text-soft: #4b5468;
+    --accent: #2f5fdb; --accent-soft: #e8effe; --border: #dbe1f0; --step-badge: #2f5fdb;
+    --jargon-bg: #fff8e6; --jargon-border: #f0c94a; --ui-bg: #eef1f8;
+    --code-bg: #1c2333; --code-text: #e8ecf7; --ok: #1c8a52; --warn: #b8860b;
+    --loop1: #a04fd8; --loop1-soft: #f4e9fb; --loop1-text: #7a2fb0;
+    --tip-bg: #eef7ee; --tip-border: #6fbf73; --tip-text: #1c8a52;
+    --danger-bg: #fdecec; --danger-border: #e0554f; --danger-text: #b4322c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171f; --card-bg: #1c2130; --text: #eef1f8; --text-soft: #b3bad0;
+      --accent: #7ea2ff; --accent-soft: #232c48; --border: #2c3350; --step-badge: #7ea2ff;
+      --jargon-bg: #2a2410; --jargon-border: #cfa524; --ui-bg: #262c42;
+      --code-bg: #0d1017; --code-text: #dbe3f5; --ok: #57c98a; --warn: #d8b34a;
+      --loop1: #c98ef0; --loop1-soft: #2b2140; --loop1-text: #dcb3f5;
+      --tip-bg: #1c2b1e; --tip-border: #4f9a55; --tip-text: #8fd993;
+      --danger-bg: #2e1a19; --danger-border: #d16b65; --danger-text: #f0a19c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171f; --card-bg: #1c2130; --text: #eef1f8; --text-soft: #b3bad0;
+    --accent: #7ea2ff; --accent-soft: #232c48; --border: #2c3350; --step-badge: #7ea2ff;
+    --jargon-bg: #2a2410; --jargon-border: #cfa524; --ui-bg: #262c42;
+    --code-bg: #0d1017; --code-text: #dbe3f5; --ok: #57c98a; --warn: #d8b34a;
+    --loop1: #c98ef0; --loop1-soft: #2b2140; --loop1-text: #dcb3f5;
+    --tip-bg: #1c2b1e; --tip-border: #4f9a55; --tip-text: #8fd993;
+    --danger-bg: #2e1a19; --danger-border: #d16b65; --danger-text: #f0a19c;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.55; padding:0 16px 64px; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  header { padding: 36px 0 20px; }
+  header .kicker { color: var(--accent); font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+  header h1 { font-size:28px; margin:8px 0 6px; }
+  header p { color:var(--text-soft); font-size:15px; max-width:640px; }
+  .goal-card { background:var(--accent-soft); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin:18px 0 18px; }
+  .goal-card strong { color: var(--accent); }
+  .danger-card { background:var(--danger-bg); border:1px solid var(--danger-border); border-radius:14px; padding:18px 20px; margin:0 0 30px; }
+  .danger-card b { color: var(--danger-text); display:block; margin-bottom:6px; font-size:15px; }
+  .prereq { background: var(--ui-bg); border: 1px dashed var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; }
+  .prereq b { color: var(--warn); }
+  h2.section-title { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-soft); margin:40px 0 14px; display:flex; align-items:center; gap:10px; }
+  h2.section-title::after { content:""; flex:1; height:1px; background:var(--border); }
+  .jargon { background:var(--jargon-bg); border-left:4px solid var(--jargon-border); border-radius:8px; padding:12px 16px; margin:14px 0; font-size:14px; }
+  .jargon b { display:block; margin-bottom:4px; }
+
+  .mini-map { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; font-size: 13.5px; }
+  .mini-item { padding: 5px 0; }
+  .mini-note { color: var(--text-soft); font-size: 12px; }
+  .mini-loop { border: 2px dashed var(--loop-color); border-radius: 12px; padding: 10px 14px 8px; margin: 8px 0; }
+  .mini-loop.depth-1 { --loop-color: var(--loop1); }
+  .mini-loop-label { font-weight: 700; font-size: 12.5px; color: var(--loop-color); margin-bottom: 4px; }
+  .mini-item.new { font-weight: 700; }
+  .mini-item.new::after { content: " ← novo nesta fase"; font-weight: 400; color: var(--text-soft); font-size: 11.5px; }
+
+  .step { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:18px; position:relative; }
+  .step-head { display:flex; align-items:flex-start; gap:14px; margin-bottom:10px; }
+  .step-num { flex:none; width:34px; height:34px; border-radius:50%; background:var(--step-badge); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; }
+  .step-title { font-size:17px; font-weight:700; margin-top:4px; }
+  .step-body { padding-left:48px; font-size:15px; color:var(--text); }
+  .step-body p { margin:8px 0; }
+  .step-body ol, .step-body ul { padding-left: 20px; margin: 8px 0; }
+  .step-body li { margin: 5px 0; }
+  .tag { display:inline-block; background:var(--ui-bg); border:1px solid var(--border); border-radius:6px; padding:1px 8px; font-family:"Consolas",monospace; font-size:13.5px; font-weight:600; color:var(--accent); }
+  .where { display:inline-flex; align-items:center; gap:6px; background:var(--ui-bg); border-radius:999px; padding:3px 12px 3px 8px; font-size:12.5px; font-weight:700; color:var(--text-soft); margin-bottom:8px; }
+  .where.trigger { color:#b8860b; } .where.action { color:var(--ok); }
+  .where::before { content:"●"; font-size:10px; }
+  textarea.jsonbox { width:100%; min-height:60px; background:var(--code-bg); color:var(--code-text); border:none; border-radius:10px; padding:14px; font-family:"Consolas",monospace; font-size:12.5px; line-height:1.5; resize:vertical; }
+  .copy-hint { font-size:13px; color:var(--text-soft); margin-top:6px; }
+  .tip { background: var(--tip-bg); border-left: 4px solid var(--tip-border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13.5px; color: var(--tip-text); }
+  .tip b { color: inherit; }
+  .warnbox { background: var(--danger-bg); border-left: 4px solid var(--danger-border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13.5px; color: var(--danger-text); }
+  .warnbox b { color: inherit; }
+
+  .loop-box { border: 2px dashed var(--loop-color); border-radius: 18px; padding: 30px 18px 14px; margin: 30px 0; position: relative; }
+  .loop-box.depth-1 { --loop-color: var(--loop1); background: var(--loop1-soft); }
+  .loop-tag { position: absolute; top: -15px; left: 20px; background: var(--loop-color); color: #fff; font-weight: 700; font-size: 12.5px; padding: 5px 14px; border-radius: 999px; white-space: normal; max-width: calc(100% - 40px); }
+  .loop-box .step { background: var(--card-bg); }
+  .loop-end-note { font-size: 12.5px; color: var(--loop-color); font-weight: 700; text-align: right; padding-top: 4px; }
+  .fade-note { font-size: 12.5px; color: var(--text-soft); text-align:center; padding: 6px 0 2px; font-style: italic; }
+
+  .checklist { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:22px 24px; }
+  .checklist label { display:flex; align-items:flex-start; gap:10px; padding:8px 0; font-size:15px; cursor:pointer; }
+  .checklist input { margin-top:4px; width:17px; height:17px; accent-color:var(--accent); }
+  .checklist input:checked + span { text-decoration:line-through; color:var(--text-soft); }
+  footer { text-align:center; color:var(--text-soft); font-size:13px; margin-top:44px; }
+  pre { white-space: pre-wrap; word-break: break-all; background: rgba(127,127,127,.12); padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Projeto Certificados — Integração Power Automate</div>
+    <h1>Fase 5: depois de enviar, a pasta vai para "Enviados"</h1>
+    <p>Hoje a pasta <span class="tag">Para Enviar</span> só cresce: tudo que já foi mandado continua lá. Nesta fase o fluxo, <b>depois de mandar todos os e-mails de um manifesto</b>, move a pasta daquele lote para <span class="tag">Enviados\&lt;Curso&gt;\&lt;Mês&gt;</span>, com os PDFs e o manifesto dentro. A "Para Enviar" passa a mostrar só o que está pendente, e a "Enviados" vira o histórico do que já foi enviado.</p>
+  </header>
+
+  <div class="goal-card">
+    <strong>Objetivo desta fase:</strong> acrescentar <b>3 "Componha" + 2 ações do SharePoint</b> no <b>final</b> do fluxo "Certificados - Envio Automático", <b>depois</b> (e <b>fora</b>) do LOOP 1. Nada do que já funciona muda.
+  </div>
+
+  <div class="danger-card">
+    <b>⚠ Regras que o fluxo vai seguir</b>
+    <ul style="margin:8px 0 0; padding-left:20px;">
+      <li><b>Só move se deu tudo certo.</b> Se algum e-mail falhar, o fluxo para antes de mover e a pasta <b>continua em "Para Enviar"</b>. Pasta que ficou lá = lote que precisa de atenção.</li>
+      <li><b>Nada é sobrescrito.</b> Se o mesmo curso/mês for enviado de novo (ex.: você regerou pra corrigir), a pasta nova entra em "Enviados" com outro nome (algo como <span class="tag">04.26 1</span>) e a antiga fica.</li>
+      <li><b>Não dispara o fluxo de novo.</b> O manifesto que chega em "Enviados" não passa pela condição do gatilho, que só aceita o que está em <span class="tag">Para Enviar/</span>.</li>
+      <li>Os PDFs oficiais que o AHK salva em <span class="tag">Declarações\&lt;Semestre&gt;\...</span> <b>não são tocados</b>. Esta fase só mexe na cópia que fica em "Para Enviar".</li>
+    </ul>
+  </div>
+
+  <h2 class="section-title">Palavras novas desta fase</h2>
+  <div class="jargon">
+    <b>Criar nova pasta (SharePoint)</b>
+    Cria uma pasta, e as pastas "de cima" também, se não existirem. Aqui ela garante que <span class="tag">Enviados\&lt;Curso&gt;</span> exista antes de mover o mês pra dentro. No primeiro envio ela também cria a própria pasta "Enviados", então você não precisa criar nada à mão.
+  </div>
+  <div class="jargon">
+    <b>Mover pasta (SharePoint)</b>
+    Move a pasta inteira com tudo dentro (PDFs + manifesto) para <b>dentro</b> de outra pasta, mantendo o nome. Então a pasta <span class="tag">04.26</span> sai de <span class="tag">Para Enviar\Curso\</span> e vai para <span class="tag">Enviados\Curso\04.26</span>.
+  </div>
+  <div class="jargon">
+    <b>Executar após (Run after)</b>
+    Toda ação só roda se a ação de cima deu certo. Dá pra mudar isso nas configurações dela. Vamos usar isso uma vez: o "Mover pasta" deve rodar mesmo que o "Criar nova pasta" reclame que a pasta <b>já existe</b>, o que vai acontecer a partir do 2º mês do mesmo curso.
+  </div>
+
+  <h2 class="section-title">Mapa da fase (fluxo "Certificados - Envio Automático")</h2>
+  <div class="mini-map">
+    <div class="mini-item">🟡 Gatilho SharePoint + condições <span class="mini-note">(Fase 4, sem mudanças)</span></div>
+    <div class="mini-item">⏳ EsperarSincronizar · 📄 LerArquivoManifesto · ⚙️ LerManifestoJSON · Componhas · AnexosDoDocente <span class="mini-note">(sem mudanças)</span></div>
+    <div class="mini-loop depth-1">
+      <div class="mini-loop-label">🔁 LOOP 1: uma vez por DOCENTE <span class="mini-note">(sem mudanças)</span></div>
+      <div class="mini-item">🔁 LOOP 2: arquivos · ✉️ Enviar um e-mail (V2)</div>
+    </div>
+    <div class="mini-item new">📝 Componha <span class="tag">CaminhoManifesto</span></div>
+    <div class="mini-item new">📝 Componha <span class="tag">PastaDoLote</span></div>
+    <div class="mini-item new">📝 Componha <span class="tag">PastaCursoEnviados</span></div>
+    <div class="mini-item new">📁 Criar nova pasta (<span class="tag">CriarPastaEnviados</span>)</div>
+    <div class="mini-item new">📦 Mover pasta (<span class="tag">MoverParaEnviados</span>)</div>
+  </div>
+
+  <h2 class="section-title">Passo a passo</h2>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">1</div><div class="step-title">Guardar uma cópia de segurança do fluxo atual</div></div>
+    <div class="step-body">
+      <div class="where trigger">Power Automate → Meus fluxos</div>
+      <ol>
+        <li>Clique no <b>nome</b> do fluxo <span class="tag">Certificados - Envio Automático</span> pra abrir a página de detalhes. Não entre no modo Editar.</li>
+        <li>Clique em <span class="tag">Salvar como</span> (às vezes fica dentro dos <span class="tag">...</span>).</li>
+        <li>Nome: <span class="tag">Certificados - Envio Automático (backup Fase 4)</span> → <span class="tag">Salvar</span>.</li>
+      </ol>
+      <div class="tip">A cópia nasce <b>desativada</b> e deve ficar assim: ela é só o plano B. Se a Fase 5 der algum problema, você desativa o fluxo principal e ativa essa cópia, e tudo volta a ser como antes. <b>Nunca deixe os dois ativados ao mesmo tempo</b>: cada docente receberia o e-mail duas vezes.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">2</div><div class="step-title">Abrir o fluxo principal para editar</div></div>
+    <div class="step-body">
+      <div class="where trigger">Meus fluxos → Certificados - Envio Automático → Editar</div>
+      <ol>
+        <li>Abra o fluxo <span class="tag">Certificados - Envio Automático</span> (o <b>principal</b>, não o backup) e clique em <span class="tag">Editar</span>.</li>
+        <li>Confira o nome no topo da tela de edição.</li>
+        <li>Role até o <b>fim</b> do fluxo. A última caixa grande é o <b>LOOP 1</b> (o "Aplicar a cada" dos docentes).</li>
+      </ol>
+      <div class="tip">Pode editar com o fluxo ativado. As mudanças só passam a valer quando você clica em Salvar (passo 8).</div>
+    </div>
+  </div>
+
+  <div class="loop-box depth-1">
+    <div class="loop-tag">🔁 LOOP 1 — Aplicar a cada (docentes) · NÃO mexa aqui dentro nesta fase</div>
+    <div class="fade-note">LOOP 2 (arquivos) … Enviar um e-mail (V2) … tudo igual</div>
+    <div class="loop-end-note">↑ fim do LOOP 1</div>
+  </div>
+
+  <div class="warnbox"><b>⚠ O ponto mais importante da fase:</b> todos os passos abaixo ficam <b>embaixo e fora</b> da moldura do LOOP 1. Use o <span class="tag">+</span> que aparece <b>depois</b> da borda de baixo do LOOP 1, e não o <span class="tag">+</span> que fica dentro dele. Se a pasta for movida de dentro do loop, ela sai logo depois do <b>primeiro</b> docente, e os outros docentes não acham mais os PDFs. Depois de adicionar cada ação, confira que ela aparece <b>alinhada com o LOOP 1</b>, e não recuada pra dentro dele.</div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">3</div><div class="step-title">Componha <span class="tag">CaminhoManifesto</span>: onde o manifesto apareceu</div></div>
+    <div class="step-body">
+      <div class="where action">depois do LOOP 1, fora da moldura</div>
+      <ol>
+        <li>Clique no <span class="tag">+</span> abaixo do LOOP 1 → <span class="tag">Adicionar uma ação</span> → busque <span class="tag">Componha</span> (Compose, grupo "Operações de Dados").</li>
+        <li><b>Antes de preencher</b>, renomeie a ação para exatamente <span class="tag">CaminhoManifesto</span>.</li>
+        <li>No campo <span class="tag">Entradas</span>, vá na aba <span class="tag">Expressão</span> e cole:
+          <pre>triggerOutputs()?['body/{FullPath}']</pre>
+        </li>
+      </ol>
+      <p class="copy-hint">É o mesmo caminho completo que a Fase 4 já usa pra achar os PDFs. Guardar ele aqui ajuda a conferir no histórico se algo der errado.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">4</div><div class="step-title">Componha <span class="tag">PastaDoLote</span>: a pasta que vai ser movida</div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo do CaminhoManifesto</div>
+      <ol>
+        <li><span class="tag">+</span> abaixo do <span class="tag">CaminhoManifesto</span> → <span class="tag">Componha</span>.</li>
+        <li>Renomeie para exatamente <span class="tag">PastaDoLote</span>.</li>
+        <li><span class="tag">Entradas</span> → aba <span class="tag">Expressão</span> → cole:
+          <pre>concat('/', replace(if(startsWith(outputs('CaminhoManifesto'), '/'), substring(outputs('CaminhoManifesto'), 1), outputs('CaminhoManifesto')), '/manifesto.txt', ''))</pre>
+        </li>
+      </ol>
+      <p class="copy-hint">Tira o "/manifesto.txt" do fim e garante a "/" no começo. Ex.: <span class="tag">/Documentos Compartilhados/…/Para Enviar/Curso/04.26</span></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">5</div><div class="step-title">Componha <span class="tag">PastaCursoEnviados</span>: para onde ela vai</div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo do PastaDoLote</div>
+      <ol>
+        <li><span class="tag">+</span> abaixo do <span class="tag">PastaDoLote</span> → <span class="tag">Componha</span>.</li>
+        <li>Renomeie para exatamente <span class="tag">PastaCursoEnviados</span>.</li>
+        <li><span class="tag">Entradas</span> → aba <span class="tag">Expressão</span> → cole:
+          <pre>replace(substring(outputs('PastaDoLote'), 0, lastIndexOf(outputs('PastaDoLote'), '/')), '/Para Enviar/', '/Enviados/')</pre>
+        </li>
+      </ol>
+      <p class="copy-hint">Tira o mês do fim e troca "Para Enviar" por "Enviados". Ex.: <span class="tag">/Documentos Compartilhados/…/Enviados/Curso</span>. A pasta "Enviados" fica <b>ao lado</b> da "Para Enviar", no mesmo lugar.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">6</div><div class="step-title">Criar nova pasta <span class="tag">CriarPastaEnviados</span></div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo do PastaCursoEnviados</div>
+      <ol>
+        <li><span class="tag">+</span> → busque <span class="tag">Criar nova pasta</span>, do conector <b>SharePoint</b> (em inglês, "Create new folder").</li>
+        <li>Renomeie para exatamente <span class="tag">CriarPastaEnviados</span>.</li>
+        <li><span class="tag">Endereço do Site</span>: o mesmo de sempre (o do gatilho).</li>
+        <li><span class="tag">Lista ou Biblioteca</span>: a <b>mesma biblioteca</b> escolhida no gatilho (passo 3 da Fase 4).</li>
+        <li><span class="tag">Caminho da Pasta</span> → aba <span class="tag">Expressão</span> → cole:
+          <pre>substring(outputs('PastaCursoEnviados'), add(indexOf(substring(outputs('PastaCursoEnviados'), 1), '/'), 2))</pre>
+        </li>
+      </ol>
+      <p class="copy-hint">Este campo não quer o nome da biblioteca no começo, porque ela já foi escolhida na lista. A fórmula tira esse primeiro pedaço. Ex.: <span class="tag">…/Enviados/Curso</span> sem o <span class="tag">/Documentos Compartilhados/</span>.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">7</div><div class="step-title">Mover pasta <span class="tag">MoverParaEnviados</span></div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo do CriarPastaEnviados, é a última ação do fluxo</div>
+      <ol>
+        <li><span class="tag">+</span> → busque <span class="tag">Mover pasta</span>, do conector <b>SharePoint</b> (em inglês, "Move folder"). Cuidado pra não pegar o "Mover arquivo".</li>
+        <li>Renomeie para exatamente <span class="tag">MoverParaEnviados</span>.</li>
+        <li><span class="tag">Endereço do Site Atual</span>: o mesmo de sempre.</li>
+        <li><span class="tag">Pasta a Mover</span> → aba <span class="tag">Expressão</span> → <pre>outputs('PastaDoLote')</pre></li>
+        <li><span class="tag">Endereço do Site de Destino</span>: o mesmo site.</li>
+        <li><span class="tag">Pasta de Destino</span> → aba <span class="tag">Expressão</span> → <pre>outputs('PastaCursoEnviados')</pre></li>
+        <li><span class="tag">Se houver outra pasta</span>: escolha <span class="tag">Mover com um novo nome</span> (em inglês, "Move with a new name"). É isso que guarda as duas quando um curso/mês é enviado de novo.</li>
+      </ol>
+      <div class="where trigger">ainda no MoverParaEnviados → Configurações → Executar após</div>
+      <ol>
+        <li>Abra as <span class="tag">Configurações</span> do <span class="tag">MoverParaEnviados</span>. No designer novo é a aba Configurações. No antigo, <span class="tag">...</span> → <span class="tag">Configurar execução após</span>.</li>
+        <li>Em <span class="tag">Executar após</span>, ele mostra <span class="tag">CriarPastaEnviados</span> com "É bem-sucedido" marcado. Marque <b>também</b> <span class="tag">Falhou</span>.</li>
+      </ol>
+      <div class="tip">Por que marcar "Falhou" também: a partir do 2º mês do mesmo curso, a pasta <span class="tag">Enviados\Curso</span> já existe, e o "Criar nova pasta" pode reclamar disso. Com "Falhou" marcado, o mover acontece do mesmo jeito. Se a falha do "Criar" for de verdade (ex.: sem permissão), o próprio "Mover" falha logo depois e a pasta fica em "Para Enviar". Nada se perde.</div>
+      <div class="warnbox">Não mude o "Executar após" de nenhuma outra ação. Os Componhas e o "Criar nova pasta" continuam no padrão ("É bem-sucedido"). É isso que garante que <b>nada é movido se algum e-mail falhar</b> no LOOP 1.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">8</div><div class="step-title">Salvar</div></div>
+    <div class="step-body">
+      <div class="where trigger">canto superior direito</div>
+      <ol>
+        <li>Clique em <span class="tag">Salvar</span>. Se aparecer erro vermelho, quase sempre é um nome de ação digitado diferente na fórmula. Confira se os nomes estão <b>exatamente</b> como <span class="tag">CaminhoManifesto</span>, <span class="tag">PastaDoLote</span> e <span class="tag">PastaCursoEnviados</span>.</li>
+        <li>Confira na página de detalhes que o fluxo principal continua <b>Ativado</b> e que o backup está <b>Desativado</b>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">9</div><div class="step-title">Testar com a TESTE_v6</div></div>
+    <div class="step-body">
+      <div class="where trigger">AHK → GerarCertificados_TESTE_v6.ahk</div>
+      <ol>
+        <li>Rode a <span class="tag">GerarCertificados_TESTE_v6.ahk</span> com <b>1 curso</b> e o seu e-mail de teste.</li>
+        <li>Espere de 10 a 15 minutos e acompanhe o <b>Histórico de execuções</b> até aparecer "Êxito".</li>
+        <li>Clique na execução e abra as 3 Componhas novas. Confira se <span class="tag">PastaDoLote</span> termina no mês (ex.: <span class="tag">…/Para Enviar/TESTE - Curso/04.26</span>) e se <span class="tag">PastaCursoEnviados</span> termina em <span class="tag">…/Enviados/TESTE - Curso</span>.</li>
+      </ol>
+      <p class="copy-hint">Com a TESTE, a pasta vai para <span class="tag">Enviados\TESTE - &lt;Curso&gt;\&lt;Mês&gt;</span>. Depois do teste, é só apagar essa pasta "TESTE - ..." de dentro da "Enviados".</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">10</div><div class="step-title">Conferir o resultado</div></div>
+    <div class="step-body">
+      <div class="where trigger">caixa de entrada + SharePoint (ou Explorador de Arquivos do OneDrive)</div>
+      <div class="checklist" style="padding:6px 0; border:none;">
+        <label><input type="checkbox"><span>Os e-mails de teste chegaram, com os PDFs certos (igual à Fase 4).</span></label>
+        <label><input type="checkbox"><span>A pasta do mês <b>sumiu</b> de <span class="tag">Para Enviar\TESTE - &lt;Curso&gt;\</span>.</span></label>
+        <label><input type="checkbox"><span>Ela <b>apareceu</b> em <span class="tag">Enviados\TESTE - &lt;Curso&gt;\&lt;Mês&gt;</span>, com os PDFs e o manifesto dentro.</span></label>
+        <label><input type="checkbox"><span>Só uma execução no histórico (a mudança de pasta não disparou o fluxo de novo).</span></label>
+        <label><input type="checkbox"><span><i>(Opcional)</i> Rodar a TESTE de novo com o <b>mesmo</b> curso e mês: em "Enviados" devem ficar <b>duas</b> pastas do mês, com a nova tendo um nome diferente.</span></label>
+      </div>
+      <div class="tip">✅ Se tudo isso bater, a Fase 5 está pronta. No dia a dia você não faz nada de diferente: roda o gerador e o fluxo manda os e-mails e arquiva sozinho.</div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Problemas comuns</h2>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">Os e-mails foram, mas a pasta continua em "Para Enviar"</div></div>
+    <div class="step-body">
+      <p>Abra a execução no histórico e veja qual das ações novas ficou vermelha.</p>
+      <ul>
+        <li><b>O LOOP 1 ficou vermelho</b> (algum e-mail falhou): é de propósito, o fluxo não move nada quando algum envio dá errado. Veja qual docente falhou e resolva esse caso.</li>
+        <li><b>CriarPastaEnviados vermelho e MoverParaEnviados cinza ("ignorado")</b>: faltou marcar "Falhou" no <span class="tag">Executar após</span> do passo 7.</li>
+        <li><b>MoverParaEnviados vermelho com "not found" / "não encontrado"</b>: clique nele, vá em <span class="tag">Entradas</span> e compare "Pasta a Mover" com o caminho do passo 1 da Fase 4 (sem o nome do PDF no fim). Os dois devem começar igual, com a mesma "/Documentos Compartilhados/..." ou a mesma "/Shared Documents/...". Se forem diferentes, me mande o texto das duas.</li>
+        <li><b>A pasta Enviados foi criada no lugar errado</b> (ex.: na raiz da biblioteca, ou dentro de outra pasta): abra a <span class="tag">Entrada</span> do <span class="tag">CriarPastaEnviados</span> e me mande o texto do "Caminho da Pasta" e o da <span class="tag">PastaCursoEnviados</span>.</li>
+      </ul>
+      <div class="tip">Enquanto investiga, a pasta que ficou em "Para Enviar" <b>não</b> é reenviada sozinha. O fluxo só dispara de novo se o manifesto for alterado. Pra arquivar esse lote na mão, é só arrastar a pasta do mês para a "Enviados" pelo SharePoint.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">A pasta do curso ficou vazia em "Para Enviar"</div></div>
+    <div class="step-body">
+      <p>É esperado. O fluxo move só o <b>mês</b>, e a pasta <span class="tag">Para Enviar\&lt;Curso&gt;\</span> fica vazia até o próximo mês daquele curso. Pode apagar à mão quando quiser, sem risco. Se isso incomodar, dá pra fazer o fluxo apagar a pasta do curso quando ela ficar vazia, numa fase futura.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">Voltar atrás rápido (plano B)</div></div>
+    <div class="step-body">
+      <ol>
+        <li><span class="tag">Meus fluxos</span> → <span class="tag">Certificados - Envio Automático</span> → <span class="tag">Desativar</span>.</li>
+        <li><span class="tag">Certificados - Envio Automático (backup Fase 4)</span> → <span class="tag">Ativar</span>.</li>
+      </ol>
+      <p>Pronto: volta a ser o fluxo da Fase 4, que manda os e-mails e deixa as pastas em "Para Enviar".</p>
+    </div>
+  </div>
+
+  <footer>Guia Fase 5 · Projeto Certificados · 29/09/2026</footer>
+</div>
+</body>
+</html>
