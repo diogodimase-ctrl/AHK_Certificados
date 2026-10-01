@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guia Power Automate — Fase 6</title>
+<style>
+  :root {
+    --bg: #f4f6fb; --card-bg: #ffffff; --text: #1c2333; --text-soft: #4b5468;
+    --accent: #2f5fdb; --accent-soft: #e8effe; --border: #dbe1f0; --step-badge: #2f5fdb;
+    --jargon-bg: #fff8e6; --jargon-border: #f0c94a; --ui-bg: #eef1f8;
+    --code-bg: #1c2333; --code-text: #e8ecf7; --ok: #1c8a52; --warn: #b8860b;
+    --loop1: #a04fd8; --loop1-soft: #f4e9fb; --loop1-text: #7a2fb0;
+    --tip-bg: #eef7ee; --tip-border: #6fbf73; --tip-text: #1c8a52;
+    --danger-bg: #fdecec; --danger-border: #e0554f; --danger-text: #b4322c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171f; --card-bg: #1c2130; --text: #eef1f8; --text-soft: #b3bad0;
+      --accent: #7ea2ff; --accent-soft: #232c48; --border: #2c3350; --step-badge: #7ea2ff;
+      --jargon-bg: #2a2410; --jargon-border: #cfa524; --ui-bg: #262c42;
+      --code-bg: #0d1017; --code-text: #dbe3f5; --ok: #57c98a; --warn: #d8b34a;
+      --loop1: #c98ef0; --loop1-soft: #2b2140; --loop1-text: #dcb3f5;
+      --tip-bg: #1c2b1e; --tip-border: #4f9a55; --tip-text: #8fd993;
+      --danger-bg: #2e1a19; --danger-border: #d16b65; --danger-text: #f0a19c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171f; --card-bg: #1c2130; --text: #eef1f8; --text-soft: #b3bad0;
+    --accent: #7ea2ff; --accent-soft: #232c48; --border: #2c3350; --step-badge: #7ea2ff;
+    --jargon-bg: #2a2410; --jargon-border: #cfa524; --ui-bg: #262c42;
+    --code-bg: #0d1017; --code-text: #dbe3f5; --ok: #57c98a; --warn: #d8b34a;
+    --loop1: #c98ef0; --loop1-soft: #2b2140; --loop1-text: #dcb3f5;
+    --tip-bg: #1c2b1e; --tip-border: #4f9a55; --tip-text: #8fd993;
+    --danger-bg: #2e1a19; --danger-border: #d16b65; --danger-text: #f0a19c;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; line-height:1.55; padding:0 16px 64px; }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  header { padding: 36px 0 20px; }
+  header .kicker { color: var(--accent); font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+  header h1 { font-size:28px; margin:8px 0 6px; }
+  header p { color:var(--text-soft); font-size:15px; max-width:640px; }
+  .goal-card { background:var(--accent-soft); border:1px solid var(--border); border-radius:14px; padding:18px 20px; margin:18px 0 18px; }
+  .goal-card strong { color: var(--accent); }
+  .danger-card { background:var(--danger-bg); border:1px solid var(--danger-border); border-radius:14px; padding:18px 20px; margin:0 0 30px; }
+  .danger-card b { color: var(--danger-text); display:block; margin-bottom:6px; font-size:15px; }
+  .prereq { background: var(--ui-bg); border: 1px dashed var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; }
+  .prereq b { color: var(--warn); }
+  h2.section-title { font-size:15px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-soft); margin:40px 0 14px; display:flex; align-items:center; gap:10px; }
+  h2.section-title::after { content:""; flex:1; height:1px; background:var(--border); }
+  .jargon { background:var(--jargon-bg); border-left:4px solid var(--jargon-border); border-radius:8px; padding:12px 16px; margin:14px 0; font-size:14px; }
+  .jargon b { display:block; margin-bottom:4px; }
+
+  .mini-map { background: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; font-size: 13.5px; }
+  .mini-item { padding: 5px 0; }
+  .mini-note { color: var(--text-soft); font-size: 12px; }
+  .mini-loop { border: 2px dashed var(--loop-color); border-radius: 12px; padding: 10px 14px 8px; margin: 8px 0; }
+  .mini-loop.depth-1 { --loop-color: var(--loop1); }
+  .mini-loop-label { font-weight: 700; font-size: 12.5px; color: var(--loop-color); margin-bottom: 4px; }
+  .mini-item.new { font-weight: 700; }
+  .mini-item.new::after { content: " ← novo nesta fase"; font-weight: 400; color: var(--text-soft); font-size: 11.5px; }
+
+  .step { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:18px; position:relative; }
+  .step-head { display:flex; align-items:flex-start; gap:14px; margin-bottom:10px; }
+  .step-num { flex:none; width:34px; height:34px; border-radius:50%; background:var(--step-badge); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; }
+  .step-title { font-size:17px; font-weight:700; margin-top:4px; }
+  .step-body { padding-left:48px; font-size:15px; color:var(--text); }
+  .step-body p { margin:8px 0; }
+  .step-body ol, .step-body ul { padding-left: 20px; margin: 8px 0; }
+  .step-body li { margin: 5px 0; }
+  .tag { display:inline-block; background:var(--ui-bg); border:1px solid var(--border); border-radius:6px; padding:1px 8px; font-family:"Consolas",monospace; font-size:13.5px; font-weight:600; color:var(--accent); }
+  .where { display:inline-flex; align-items:center; gap:6px; background:var(--ui-bg); border-radius:999px; padding:3px 12px 3px 8px; font-size:12.5px; font-weight:700; color:var(--text-soft); margin-bottom:8px; }
+  .where.trigger { color:#b8860b; } .where.action { color:var(--ok); }
+  .where::before { content:"●"; font-size:10px; }
+  textarea.jsonbox { width:100%; min-height:60px; background:var(--code-bg); color:var(--code-text); border:none; border-radius:10px; padding:14px; font-family:"Consolas",monospace; font-size:12.5px; line-height:1.5; resize:vertical; }
+  .copy-hint { font-size:13px; color:var(--text-soft); margin-top:6px; }
+  .tip { background: var(--tip-bg); border-left: 4px solid var(--tip-border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13.5px; color: var(--tip-text); }
+  .tip b { color: inherit; }
+  .warnbox { background: var(--danger-bg); border-left: 4px solid var(--danger-border); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 13.5px; color: var(--danger-text); }
+  .warnbox b { color: inherit; }
+
+  .loop-box { border: 2px dashed var(--loop-color); border-radius: 18px; padding: 30px 18px 14px; margin: 30px 0; position: relative; }
+  .loop-box.depth-1 { --loop-color: var(--loop1); background: var(--loop1-soft); }
+  .loop-tag { position: absolute; top: -15px; left: 20px; background: var(--loop-color); color: #fff; font-weight: 700; font-size: 12.5px; padding: 5px 14px; border-radius: 999px; white-space: normal; max-width: calc(100% - 40px); }
+  .loop-box .step { background: var(--card-bg); }
+  .loop-end-note { font-size: 12.5px; color: var(--loop-color); font-weight: 700; text-align: right; padding-top: 4px; }
+  .fade-note { font-size: 12.5px; color: var(--text-soft); text-align:center; padding: 6px 0 2px; font-style: italic; }
+
+  .checklist { background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:22px 24px; }
+  .checklist label { display:flex; align-items:flex-start; gap:10px; padding:8px 0; font-size:15px; cursor:pointer; }
+  .checklist input { margin-top:4px; width:17px; height:17px; accent-color:var(--accent); }
+  .checklist input:checked + span { text-decoration:line-through; color:var(--text-soft); }
+  footer { text-align:center; color:var(--text-soft); font-size:13px; margin-top:44px; }
+  pre { white-space: pre-wrap; word-break: break-all; background: rgba(127,127,127,.12); padding: 10px 12px; border-radius: 6px; font-size: 13px; }
+</style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="kicker">Projeto Certificados — Integração Power Automate</div>
+    <h1>Fase 6: depois de enviar, a cópia do lote é apagada</h1>
+    <p>Hoje o mesmo PDF fica em <b>três lugares</b> no SharePoint: <span class="tag">Declarações\&lt;Semestre&gt;\...</span> (o arquivo oficial), <span class="tag">Para Enviar</span> (a cópia que o fluxo usa pra anexar) e <span class="tag">Enviados</span> (onde a Fase 5 guarda a cópia depois do envio). Nesta fase, depois de mandar todos os e-mails de um manifesto, o fluxo <b>apaga</b> a pasta do lote em vez de movê-la. Sobra só a cópia oficial, na pasta do semestre.</p>
+  </header>
+
+  <div class="goal-card">
+    <strong>Objetivo desta fase:</strong> no final do fluxo "Certificados - Envio Automático", <b>tirar</b> as 3 últimas ações da Fase 5 e <b>pôr no lugar</b> 1 Componha, 1 Condição e 1 ação "Enviar uma solicitação HTTP para o SharePoint". Tudo que vem antes, gatilho, leitura do manifesto e os dois loops, fica igual.
+  </div>
+
+  <div class="danger-card">
+    <b>⚠ Regras que o fluxo vai seguir</b>
+    <ul style="margin:8px 0 0; padding-left:20px;">
+      <li><b>Só apaga se deu tudo certo.</b> Se algum e-mail falhar, o fluxo para antes e a pasta <b>continua em "Para Enviar"</b>, igual na Fase 5.</li>
+      <li><b>Vai para a Lixeira, não some de vez.</b> A ação usa o "recycle" do SharePoint, então a pasta vai para a <b>Lixeira do site</b> e dá pra restaurar por cerca de 93 dias.</li>
+      <li><b>Trava de segurança.</b> O fluxo só apaga uma pasta que esteja <b>dentro</b> de <span class="tag">/Para Enviar/</span>. Se o caminho vier estranho, ele não apaga nada.</li>
+      <li>Os PDFs oficiais em <span class="tag">Declarações\&lt;Semestre&gt;\...</span> <b>não são tocados</b>. Eles são gravados pelo AHK e o fluxo nunca mexe neles.</li>
+    </ul>
+  </div>
+
+  <h2 class="section-title">Palavras novas desta fase</h2>
+  <div class="jargon">
+    <b>Enviar uma solicitação HTTP para o SharePoint</b>
+    É uma ação do conector <b>SharePoint</b> (padrão, não Premium) que manda um comando direto para o SharePoint. O conector não tem uma ação pronta de "Excluir pasta", então usamos esta com o comando <span class="tag">recycle()</span>, que manda a pasta inteira para a Lixeira.
+  </div>
+  <div class="jargon">
+    <b>{Link} do gatilho</b>
+    É o endereço web completo do manifesto (<span class="tag">https://.../sites/&lt;Site&gt;/.../Para Enviar/Curso/Mês/manifesto.txt</span>). A partir dele o fluxo monta o caminho exato da pasta do lote, já com o nome do site e da biblioteca do jeito que o SharePoint espera.
+  </div>
+
+  <h2 class="section-title">Mapa da fase (fluxo "Certificados - Envio Automático")</h2>
+  <div class="mini-map">
+    <div class="mini-item">🟡 Gatilho SharePoint + condições <span class="mini-note">(sem mudanças)</span></div>
+    <div class="mini-item">⏳ EsperarSincronizar · 📄 LerArquivoManifesto · ⚙️ LerManifestoJSON · Componhas · AnexosDoDocente <span class="mini-note">(sem mudanças)</span></div>
+    <div class="mini-loop depth-1">
+      <div class="mini-loop-label">🔁 LOOP 1: uma vez por DOCENTE <span class="mini-note">(sem mudanças)</span></div>
+      <div class="mini-item">🔁 LOOP 2: arquivos · ✉️ Enviar um e-mail (V2)</div>
+    </div>
+    <div class="mini-item">📝 Componha <span class="tag">CaminhoManifesto</span> · 📝 Componha <span class="tag">PastaDoLote</span> <span class="mini-note">(da Fase 5, ficam)</span></div>
+    <div class="mini-item" style="text-decoration:line-through; color:var(--text-soft);">📝 PastaCursoEnviados · 📁 CriarPastaEnviados · 📦 MoverParaEnviados</div>
+    <div class="mini-item new">📝 Componha <span class="tag">PastaDoLoteServidor</span></div>
+    <div class="mini-item new">❓ Condição <span class="tag">ConferirPastaDoLote</span></div>
+    <div class="mini-item new" style="padding-left:22px;">↳ Sim: 🗑️ HTTP SharePoint (<span class="tag">ApagarPastaDoLote</span>)</div>
+  </div>
+
+  <h2 class="section-title">Passo a passo</h2>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">1</div><div class="step-title">Guardar uma cópia de segurança do fluxo atual</div></div>
+    <div class="step-body">
+      <div class="where">Power Automate → Meus fluxos</div>
+      <ol>
+        <li>Abra a página de detalhes do <span class="tag">Certificados - Envio Automático</span>, sem entrar no Editar.</li>
+        <li><span class="tag">Salvar como</span> → nome <span class="tag">Certificados - Envio Automático (backup Fase 5)</span> → Salvar.</li>
+        <li>A cópia nasce <b>desativada</b> e deve continuar assim. O backup antigo, o "(backup Fase 4)", pode ser excluído ou ficar lá desativado, tanto faz.</li>
+      </ol>
+      <div class="warnbox"><b>Nunca deixe dois fluxos ativados ao mesmo tempo:</b> cada docente receberia o e-mail duas vezes.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">2</div><div class="step-title">Abrir o fluxo principal e ir até o fim</div></div>
+    <div class="step-body">
+      <div class="where">Meus fluxos → Certificados - Envio Automático → Editar</div>
+      <ol>
+        <li>Confira o nome no topo: tem que ser o <b>principal</b>, não o backup.</li>
+        <li>Role até o fim. Depois do LOOP 1 estão as 5 ações da Fase 5: <span class="tag">CaminhoManifesto</span>, <span class="tag">PastaDoLote</span>, <span class="tag">PastaCursoEnviados</span>, <span class="tag">CriarPastaEnviados</span> e <span class="tag">MoverParaEnviados</span>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">3</div><div class="step-title">Excluir as 3 últimas ações da Fase 5</div></div>
+    <div class="step-body">
+      <div class="where action">fim do fluxo, de baixo para cima</div>
+      <ol>
+        <li>Na <span class="tag">MoverParaEnviados</span>: <span class="tag">...</span> → <span class="tag">Excluir</span>.</li>
+        <li>Na <span class="tag">CriarPastaEnviados</span>: <span class="tag">...</span> → <span class="tag">Excluir</span>.</li>
+        <li>Na <span class="tag">PastaCursoEnviados</span>: <span class="tag">...</span> → <span class="tag">Excluir</span>.</li>
+      </ol>
+      <p class="copy-hint">Exclua de baixo pra cima, porque o Power Automate não deixa apagar uma ação que outra ainda usa. <b>Não exclua</b> a <span class="tag">CaminhoManifesto</span> nem a <span class="tag">PastaDoLote</span>: elas ficam pra ajudar a conferir no histórico.</p>
+    </div>
+  </div>
+
+  <div class="loop-box depth-1">
+    <div class="loop-tag">🔁 LOOP 1: NÃO mexa aqui dentro nesta fase</div>
+    <div class="fade-note">LOOP 2 (arquivos) … Enviar um e-mail (V2) … tudo igual</div>
+    <div class="loop-end-note">↑ fim do LOOP 1</div>
+  </div>
+  <div class="warnbox"><b>Igual à Fase 5:</b> tudo daqui pra baixo fica <b>embaixo e fora</b> da moldura do LOOP 1, depois da <span class="tag">PastaDoLote</span>. Se a pasta for apagada de dentro do loop, ela some logo depois do primeiro docente e os outros não acham mais os PDFs.</div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">4</div><div class="step-title">Componha <span class="tag">PastaDoLoteServidor</span>: o endereço exato da pasta</div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo da PastaDoLote, fora do loop</div>
+      <ol>
+        <li><span class="tag">+</span> abaixo da <span class="tag">PastaDoLote</span> → <span class="tag">Componha</span>.</li>
+        <li>Renomeie para exatamente <span class="tag">PastaDoLoteServidor</span>.</li>
+        <li><span class="tag">Entradas</span> → aba <span class="tag">Expressão</span> → cole:
+          <pre>replace(decodeUriComponent(uriPath(triggerOutputs()?['body/{Link}'])), '/manifesto.txt', '')</pre>
+        </li>
+      </ol>
+      <p class="copy-hint">Pega o endereço web do manifesto, fica só com o caminho (sem o "https://empresa.sharepoint.com"), troca os <span class="tag">%20</span> por espaço e tira o "/manifesto.txt". Ex.: <span class="tag">/sites/&lt;Site&gt;/Shared Documents/…/Para Enviar/Curso/04.26</span></p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">5</div><div class="step-title">Condição <span class="tag">ConferirPastaDoLote</span>: a trava de segurança</div></div>
+    <div class="step-body">
+      <div class="where action">logo abaixo da PastaDoLoteServidor</div>
+      <ol>
+        <li><span class="tag">+</span> → busque <span class="tag">Condição</span> (Condition, grupo "Controle").</li>
+        <li>Renomeie para exatamente <span class="tag">ConferirPastaDoLote</span>.</li>
+        <li>Na caixa da <b>esquerda</b> → aba <span class="tag">Expressão</span> → cole:
+          <pre>contains(outputs('PastaDoLoteServidor'), '/Para Enviar/')</pre>
+        </li>
+        <li>No meio, deixe <span class="tag">é igual a</span> (is equal to).</li>
+        <li>Na caixa da <b>direita</b> → aba <span class="tag">Expressão</span> → digite <span class="tag">true</span> → OK. Use a aba Expressão: se digitar "true" direto na caixa, vira texto e a condição dá sempre "Não".</li>
+      </ol>
+      <p class="copy-hint">Só passa se a pasta estiver <b>dentro</b> de "Para Enviar". Como o caminho termina no mês, a própria "Para Enviar" e as pastas fora dela nunca são apagadas.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">6</div><div class="step-title">HTTP SharePoint <span class="tag">ApagarPastaDoLote</span> no ramo "Sim"</div></div>
+    <div class="step-body">
+      <div class="where action">dentro do ramo "Sim" (True) da ConferirPastaDoLote</div>
+      <ol>
+        <li>No ramo <b>Sim</b>, clique em <span class="tag">Adicionar uma ação</span> e busque <span class="tag">Enviar uma solicitação HTTP para o SharePoint</span> (em inglês, "Send an HTTP request to SharePoint"). Tem que ser a do conector <b>SharePoint</b>, não a "HTTP" genérica, que é Premium.</li>
+        <li>Renomeie para exatamente <span class="tag">ApagarPastaDoLote</span>.</li>
+        <li><span class="tag">Endereço do Site</span>: o mesmo de sempre (o do gatilho).</li>
+        <li><span class="tag">Método</span>: <span class="tag">POST</span>.</li>
+        <li><span class="tag">Uri</span> → aba <span class="tag">Expressão</span> → cole:
+          <pre>concat('_api/web/GetFolderByServerRelativeUrl(''', replace(outputs('PastaDoLoteServidor'), '''', ''''''), ''')/recycle()')</pre>
+        </li>
+        <li><span class="tag">Cabeçalhos</span> (Headers): chave <span class="tag">Accept</span>, valor <span class="tag">application/json;odata=nometadata</span>.</li>
+        <li><span class="tag">Corpo</span> (Body): deixe <b>vazio</b>.</li>
+      </ol>
+      <p class="copy-hint">Ex. de como a Uri fica: <span class="tag">_api/web/GetFolderByServerRelativeUrl('/sites/…/Para Enviar/Curso/04.26')/recycle()</span>. O <span class="tag">replace</span> do meio dobra os apóstrofos, pra um curso com "d'Água" no nome não quebrar o comando.</p>
+      <p class="copy-hint">O ramo <b>Não</b> fica vazio.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">7</div><div class="step-title">Salvar</div></div>
+    <div class="step-body">
+      <div class="where">canto superior direito</div>
+      <ol>
+        <li><span class="tag">Salvar</span>. Se aparecer erro vermelho, quase sempre é um nome de ação digitado diferente: confira <span class="tag">PastaDoLoteServidor</span>.</li>
+        <li>Na página de detalhes: principal <b>Ativado</b>, backups <b>Desativados</b>.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">8</div><div class="step-title">Testar com a TESTE_v6</div></div>
+    <div class="step-body">
+      <div class="where">AHK → GerarCertificados_TESTE_v6.ahk</div>
+      <ol>
+        <li>Rode a <span class="tag">GerarCertificados_TESTE_v6.ahk</span> com <b>1 curso</b> e o seu e-mail de teste.</li>
+        <li>Espere de 10 a 15 minutos e acompanhe o <span class="tag">Histórico de execuções</span> até aparecer "Êxito".</li>
+        <li>Abra a execução e clique na <span class="tag">PastaDoLoteServidor</span>: a saída tem que começar com <span class="tag">/sites/</span> e terminar no mês (ex.: <span class="tag">…/Para Enviar/TESTE - Curso/04.26</span>).</li>
+        <li>A <span class="tag">ConferirPastaDoLote</span> tem que ter ido pelo <b>Sim</b>, e a <span class="tag">ApagarPastaDoLote</span> tem que estar verde.</li>
+      </ol>
+      <div class="checklist" style="padding:6px 0; border:none;">
+        <label><input type="checkbox"><span>Os e-mails de teste chegaram, com os PDFs certos.</span></label>
+        <label><input type="checkbox"><span>A pasta do mês <b>sumiu</b> de <span class="tag">Para Enviar\TESTE - &lt;Curso&gt;\</span>.</span></label>
+        <label><input type="checkbox"><span>Ela <b>não</b> apareceu em "Enviados".</span></label>
+        <label><input type="checkbox"><span>Ela está na <b>Lixeira</b> do site do SharePoint (engrenagem ou menu lateral → Lixeira).</span></label>
+        <label><input type="checkbox"><span>Só <b>uma</b> execução no histórico.</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">9</div><div class="step-title">Faxina manual (uma vez só)</div></div>
+    <div class="step-body">
+      <div class="where">SharePoint → Planilha compartilhada - Declarações</div>
+      <ol>
+        <li>Apague a pasta <span class="tag">Enviados</span> inteira. Ela só tem cópias, porque os oficiais estão nas pastas do semestre.</li>
+        <li>Em <span class="tag">Para Enviar</span>, apague as pastas de curso que ficaram <b>vazias</b>. O fluxo apaga só a pasta do mês, então a do curso fica vazia até o próximo mês. Uma pasta que ainda tem um mês dentro é um lote que <b>não foi enviado</b>: confira antes de apagar.</li>
+      </ol>
+    </div>
+  </div>
+
+  <h2 class="section-title">Problemas comuns</h2>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">ApagarPastaDoLote vermelho com 404 / "File Not Found"</div></div>
+    <div class="step-body">
+      <p>Clique na <span class="tag">PastaDoLoteServidor</span>, copie a saída e me mande, junto com a mensagem de erro da <span class="tag">ApagarPastaDoLote</span>. Os e-mails já foram e a pasta continua em "Para Enviar", então nada se perdeu. Até corrigir, dá pra apagar a pasta do lote à mão.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">PastaDoLoteServidor vermelho ou vazia</div></div>
+    <div class="step-body">
+      <p>Pode ser que o gatilho não entregue o <span class="tag">{Link}</span>. Abra o gatilho na execução, clique em <span class="tag">Mostrar saídas brutas</span> (Show raw outputs) e me mande os nomes dos campos que aparecem (os que começam com <span class="tag">{</span>). A gente troca a fórmula pra montar o caminho por outro campo.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">A condição foi pelo "Não"</div></div>
+    <div class="step-body">
+      <p>Confira se o <span class="tag">true</span> da direita foi posto pela aba <b>Expressão</b>. Se foi, me mande a saída da <span class="tag">PastaDoLoteServidor</span>: talvez o nome da pasta venha diferente de "Para Enviar".</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">Apagou algo que não devia / quero um PDF de volta</div></div>
+    <div class="step-body">
+      <p>Lixeira do site do SharePoint → selecione a pasta → <span class="tag">Restaurar</span>. Ela volta para o lugar original. A restauração <b>não</b> dispara o fluxo de novo, porque o manifesto não foi modificado.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><div class="step-num">!</div><div class="step-title">Voltar atrás rápido (plano B)</div></div>
+    <div class="step-body">
+      <ol>
+        <li>Desative o <span class="tag">Certificados - Envio Automático</span>.</li>
+        <li>Ative o <span class="tag">Certificados - Envio Automático (backup Fase 5)</span>, que move para "Enviados" como antes.</li>
+      </ol>
+    </div>
+  </div>
+
+  <footer>Guia Fase 6 · Projeto Certificados · 01/10/2026</footer>
+</div>
+</body>
+</html>
