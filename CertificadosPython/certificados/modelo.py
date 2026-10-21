@@ -141,15 +141,54 @@ def _arquivos_de_fonte():
     return _ARQUIVOS_DE_FONTE
 
 
+# Nomes antigos (PostScript/Monotype) que o PowerPoint troca pela fonte do Windows.
+_APELIDOS_DE_FONTE = {"arialmt": "arial", "arial-boldmt": "arial bold", "helvetica": "arial",
+                      "timesnewromanpsmt": "times new roman", "times": "times new roman"}
+
+
+def _substitutas_do_windows():
+    """Tabela FontSubstitutes do Windows (ex.: 'Helv' -> 'MS Sans Serif')."""
+    trocas = {}
+    try:
+        import winreg
+        chave = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontSubstitutes")
+    except (ImportError, OSError):
+        return trocas
+    i = 0
+    while True:
+        try:
+            nome, valor, _ = winreg.EnumValue(chave, i)
+        except OSError:
+            break
+        i += 1
+        trocas[nome.split(",")[0].strip().lower()] = str(valor).split(",")[0].strip().lower()
+    return trocas
+
+
+def _nomes_possiveis(nome):
+    """O próprio nome e as trocas que o PowerPoint faria ('Arial MT' -> 'arial')."""
+    nomes = [nome]
+    sem_espaco = nome.replace(" ", "")
+    if sem_espaco in _APELIDOS_DE_FONTE:
+        nomes.append(_APELIDOS_DE_FONTE[sem_espaco])
+    sem_sufixo = re.sub(r"[\s-]*(ps)?mt$", "", nome)
+    if sem_sufixo != nome:
+        nomes.append(sem_sufixo)
+    trocas = _substitutas_do_windows()
+    nomes += [trocas[n] for n in list(nomes) if n in trocas]
+    return list(dict.fromkeys(nomes))
+
+
 def _arquivo_da_fonte(fonte, negrito):
     arquivos = _arquivos_de_fonte()
-    nome = (fonte or "Calibri").lower()
-    if negrito:
-        arquivo = arquivos.get(f"{nome} bold") or arquivos.get(f"{nome} negrito")
-        if arquivo:
-            return arquivo, f"{fonte} Bold"
-    if nome in arquivos:
-        return arquivos[nome], fonte
+    for nome in _nomes_possiveis((fonte or "Calibri").lower()):
+        exibido = fonte if nome == (fonte or "").lower() else f"{nome.title()} (no lugar de {fonte!r})"
+        if negrito:
+            arquivo = arquivos.get(f"{nome} bold") or arquivos.get(f"{nome} negrito")
+            if arquivo:
+                return arquivo, f"{exibido} Bold"
+        if nome in arquivos:
+            return arquivos[nome], exibido
     reserva = "calibri bold" if negrito else "calibri"
     return arquivos.get(reserva), f"Calibri (a fonte {fonte!r} não foi encontrada neste computador)"
 
