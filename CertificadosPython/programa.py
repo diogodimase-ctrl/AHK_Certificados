@@ -18,17 +18,25 @@ Uma janela só, com as etapas na lateral (os mesmos passos do AHK):
   7. Relatório        (Passo 10)
 """
 
+import ctypes
 import json
 import os
 import shutil
+import sys
+import webbrowser
 from datetime import datetime
-from tkinter import filedialog, ttk
+from tkinter import filedialog
 
 import customtkinter as ctk
 
-from certificados import VERSAO, caminhos, coordenadores, gerador, horas, planilhas, textos
+from certificados import VERSAO, caminhos, coordenadores, gerador, historico, horas, planilhas, textos
 from certificados.pdf import ConversorPowerPoint, powerpoint_aberto
-from conferencia import COR_APAGADO, COR_AVISO, COR_ERRO, COR_OK, FONTE, em_segundo_plano, linha_de_arquivo, tabela
+import atualizacao
+import tema
+from conferencia import em_segundo_plano, linha_de_arquivo
+from tema import FONTE, tabela
+
+COR_OK, COR_ERRO, COR_AVISO, COR_APAGADO = tema.OK, tema.ERRO, tema.AVISO, tema.APAGADO
 
 ETAPAS = ["Início", "Cursos", "Coordenadores", "Planilhas e meses", "Conferir dados", "Gerar", "Relatório"]
 GERAR, RELATORIO = 5, 6
@@ -66,7 +74,7 @@ class Dialogo(ctk.CTkToplevel):
         self.escolha = None
         self.transient(pai)
         self.resizable(False, False)
-        ctk.CTkLabel(self, text=titulo, font=(FONTE, 16, "bold"), anchor="w").pack(fill="x", padx=20, pady=(16, 6))
+        ctk.CTkLabel(self, text=titulo, font=(FONTE, 18, "bold"), anchor="w").pack(fill="x", padx=20, pady=(16, 6))
         ctk.CTkLabel(self, text=texto, justify="left", anchor="w", wraplength=largura - 40).pack(fill="x", padx=20)
         self.corpo = ctk.CTkFrame(self, fg_color="transparent")
         self.corpo.pack(fill="x", padx=20, pady=(8, 0))
@@ -74,8 +82,7 @@ class Dialogo(ctk.CTkToplevel):
         linha.pack(fill="x", padx=20, pady=16)
         for i, (rotulo, valor) in enumerate(reversed(botoes)):
             principal = i == 0
-            ctk.CTkButton(linha, text=rotulo, width=150,
-                          fg_color=None if principal else "transparent", border_width=0 if principal else 1,
+            ctk.CTkButton(linha, text=rotulo, width=160, height=40, **({} if principal else tema.BOTAO_CONTORNO),
                           command=lambda v=valor: self.fechar(v)).pack(side="right", padx=(8, 0))
         self.protocol("WM_DELETE_WINDOW", lambda: self.fechar(None))
         self.after(150, self._mostrar)
@@ -126,7 +133,7 @@ class DialogoCorrecao(Dialogo):
         ctk.CTkLabel(self.corpo, text=rotulo, anchor="w").pack(fill="x", pady=(6, 0))
         var = ctk.StringVar(value=valor)
         ctk.CTkEntry(self.corpo, textvariable=var, width=500).pack(fill="x")
-        ctk.CTkLabel(self.corpo, text=dica, anchor="w", text_color=COR_APAGADO, font=(FONTE, 11)).pack(fill="x")
+        ctk.CTkLabel(self.corpo, text=dica, anchor="w", text_color=COR_APAGADO, font=(FONTE, 12)).pack(fill="x")
         self.campos[chave] = var
 
     def fechar(self, valor):
@@ -140,8 +147,15 @@ class DialogoCorrecao(Dialogo):
 
 class App(ctk.CTk):
     def __init__(self, modo="teste"):
+        tema.aplicar()
+        try:      # barra de tarefas com o ícone do programa (o mesmo id do atalho criado pelo instalador)
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Certificados.PosGraduacao")
+        except (AttributeError, OSError):
+            pass
         super().__init__()
-        ctk.set_appearance_mode("dark")
+        icone = os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "icone.ico")
+        if os.path.isfile(icone):
+            self.after(300, lambda: self.iconbitmap(icone))     # o CustomTkinter põe o dele aos 200 ms
         self.modo = gerador.MODOS[modo]
         self.geometry("1200x760")
         self.minsize(1000, 640)
@@ -154,58 +168,67 @@ class App(ctk.CTk):
         self.nova_rodada()
 
     def _estilo_tabelas(self):
-        estilo = ttk.Style(self)
-        estilo.theme_use("clam")
-        estilo.configure("Treeview", background="#22272e", fieldbackground="#22272e", foreground="#d0d7de",
-                         rowheight=26, font=(FONTE, 10), borderwidth=0)
-        estilo.configure("Treeview.Heading", background="#2d333b", foreground="#d0d7de", font=(FONTE, 10, "bold"))
-        estilo.map("Treeview", background=[("selected", "#316dca")])
+        tema.pintar_tabelas(self)
 
     def _montar_janela(self):
-        lateral = ctk.CTkFrame(self, width=220, corner_radius=0, fg_color="#1c2128")
+        lateral = ctk.CTkFrame(self, width=250, corner_radius=0, fg_color=tema.LATERAL)
         lateral.pack(side="left", fill="y")
         lateral.pack_propagate(False)
-        ctk.CTkLabel(lateral, text="Certificados", font=(FONTE, 22, "bold"), anchor="w").pack(fill="x", padx=20,
+        ctk.CTkLabel(lateral, text="Certificados", font=(FONTE, 26, "bold"), anchor="w").pack(fill="x", padx=20,
                                                                                             pady=(22, 0))
         ctk.CTkLabel(lateral, text="Pós-graduação", text_color=COR_APAGADO, anchor="w").pack(fill="x", padx=20)
         self.rotulos_etapas = []
         caixa = ctk.CTkFrame(lateral, fg_color="transparent")
         caixa.pack(fill="x", padx=12, pady=24)
         for i, nome in enumerate(ETAPAS):
-            r = ctk.CTkLabel(caixa, text=f"  {i + 1}   {nome}", anchor="w", height=34, corner_radius=6,
-                             font=(FONTE, 13))
-            r.pack(fill="x", pady=1)
+            r = ctk.CTkLabel(caixa, text=f"  {i + 1}   {nome}", anchor="w", height=42, corner_radius=10,
+                             font=(FONTE, 16))
+            r.pack(fill="x", pady=2)
             self.rotulos_etapas.append(r)
-        ctk.CTkLabel(lateral, text=f"versão {VERSAO}", text_color=COR_APAGADO, font=(FONTE, 11)).pack(
+        ctk.CTkLabel(lateral, text=f"versão {VERSAO}", text_color=COR_APAGADO, font=(FONTE, 12)).pack(
             side="bottom", pady=12)
+        self.botao_atualizar = ctk.CTkButton(lateral, text="", height=40, fg_color=tema.OK_FUNDO,
+                                             hover_color="#1f4d40", text_color=tema.OK, font=(FONTE, 13, "bold"))
+        # Só depois que a janela abriu (a resposta volta para a janela, que precisa estar rodando).
+        self.after(2000, lambda: em_segundo_plano(self, lambda: atualizacao.versao_mais_nova(VERSAO),
+                                                  self._versao_nova, lambda e, d: None))
 
         direita = ctk.CTkFrame(self, fg_color="transparent")
         direita.pack(side="left", fill="both", expand=True)
-        self.faixa = ctk.CTkLabel(direita, text="", font=(FONTE, 12, "bold"), height=30)
+        self.faixa = ctk.CTkLabel(direita, text="", font=(FONTE, 13, "bold"), height=30)
         self.faixa.pack(fill="x")
         self._aplicar_modo()
         self.conteudo = ctk.CTkFrame(direita, fg_color="transparent")
         self.conteudo.pack(fill="both", expand=True, padx=24, pady=(14, 0))
         rodape = ctk.CTkFrame(direita, fg_color="transparent")
         rodape.pack(fill="x", padx=24, pady=14)
-        self.botao_voltar = ctk.CTkButton(rodape, text="← Voltar", width=120, fg_color="transparent",
-                                          border_width=1, command=self.voltar)
+        self.botao_voltar = ctk.CTkButton(rodape, text="← Voltar", width=120, **tema.BOTAO_CONTORNO,
+                                           command=self.voltar)
         self.botao_voltar.pack(side="left")
-        self.botao_avancar = ctk.CTkButton(rodape, text="Avançar →", width=220, height=38,
-                                           font=(FONTE, 14, "bold"), command=self.avancar)
+        self.botao_avancar = ctk.CTkButton(rodape, text="Avançar →", width=220, height=44,
+                                           font=(FONTE, 16, "bold"), command=self.avancar)
         self.botao_avancar.pack(side="right")
         self.status = ctk.CTkLabel(rodape, text="", anchor="w", text_color=COR_APAGADO)
         self.status.pack(side="left", fill="x", expand=True, padx=16)
+
+    def _versao_nova(self, resultado):
+        if not resultado:
+            return
+        versao, link = resultado
+        self.botao_atualizar.configure(text=f"Versão {versao} disponível\nclique para baixar",
+                                       command=lambda: webbrowser.open(link))
+        self.botao_atualizar.pack(side="bottom", fill="x", padx=16)
 
     def _aplicar_modo(self):
         """Título da janela e faixa do alto: amarela no teste, vermelha no oficial."""
         self.title(f"Certificados — modo {self.modo.rotulo} (versão {VERSAO})")
         if self.modo.nome == "teste":
             self.faixa.configure(text="MODO TESTE  ·  nada vai para os docentes: todos os e-mails vão para o "
-                                      "e-mail de teste", fg_color=COR_AVISO, text_color="#1c1c1c")
+                                      "e-mail de teste", fg_color=tema.FAIXA_TESTE,
+                                 text_color=tema.FAIXA_TESTE_TEXTO)
         else:
             self.faixa.configure(text="MODO OFICIAL  ·  os e-mails vão para os docentes de verdade",
-                                 fg_color=COR_ERRO, text_color="#ffffff")
+                                 fg_color=tema.FAIXA_OFICIAL, text_color=tema.FAIXA_OFICIAL_TEXTO)
 
     @property
     def oficial(self):
@@ -220,6 +243,7 @@ class App(ctk.CTk):
         self.abas_mestre, self.aba = [], ""
         self.data_emissao = datetime.now().strftime("%d/%m/%Y")
         self.cursos, self.marcados = [], set()   # marcados = linhas da mestre
+        self.situacoes = None                    # historico.situacao: meses já enviados por curso
         self.lote, self.cadastro = [], None
         self.abas_por_planilha, self.erros_planilha = {}, {}
         self.meses_marcados = set()
@@ -237,10 +261,10 @@ class App(ctk.CTk):
             w.destroy()
         for i, r in enumerate(self.rotulos_etapas):
             if i == n:
-                r.configure(fg_color="#316dca", text_color="#ffffff", font=(FONTE, 13, "bold"))
+                r.configure(fg_color=tema.ACENTO, text_color="#ffffff", font=(FONTE, 16, "bold"))
             else:
-                r.configure(fg_color="transparent", text_color="#d0d7de" if i < n else COR_APAGADO,
-                            font=(FONTE, 13))
+                r.configure(fg_color="transparent", text_color=tema.TEXTO if i < n else COR_APAGADO,
+                            font=(FONTE, 16))
             r.configure(text=f"  {'✓' if i < n else i + 1}   {ETAPAS[i]}")
         self.status.configure(text="", text_color=COR_APAGADO)
         self.botao_voltar.configure(state="normal" if 0 < n < GERAR else "disabled", text="← Voltar",
@@ -278,16 +302,17 @@ class App(ctk.CTk):
         janela.title("Erro")
         janela.geometry("660x340")
         janela.transient(self)
-        ctk.CTkLabel(janela, text="Algo deu errado", font=(FONTE, 16, "bold")).pack(anchor="w", padx=16, pady=(14, 4))
+        ctk.CTkLabel(janela, text="Algo deu errado", font=(FONTE, 18, "bold")).pack(anchor="w", padx=16, pady=(14, 4))
         caixa = ctk.CTkTextbox(janela, font=("Consolas", 11))
         caixa.pack(fill="both", expand=True, padx=16, pady=4)
         caixa.insert("end", f"{erro}\n\n{detalhe}")
         ctk.CTkButton(janela, text="Fechar", command=janela.destroy).pack(pady=10)
 
     def cabecalho(self, titulo, texto):
-        ctk.CTkLabel(self.conteudo, text=titulo, font=(FONTE, 20, "bold"), anchor="w").pack(fill="x")
-        ctk.CTkLabel(self.conteudo, text=texto, justify="left", anchor="w", wraplength=880,
-                     text_color="#adbac7").pack(fill="x", pady=(2, 12))
+        ctk.CTkLabel(self.conteudo, text=titulo, font=(FONTE, 28, "bold"), text_color=tema.TITULO,
+                     anchor="w").pack(fill="x")
+        tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, text=texto, justify="left", anchor="w",
+                     text_color=tema.TEXTO_2)).pack(fill="x", pady=(2, 12))
 
     # -- 1. Início --------------------------------------------------------------
 
@@ -303,7 +328,7 @@ class App(ctk.CTk):
                            "endereço.")
         linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
         linha.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(linha, text="Modo", width=150, anchor="w", font=(FONTE, 13, "bold")).pack(side="left")
+        ctk.CTkLabel(linha, text="Modo", width=150, anchor="w", font=(FONTE, 15, "bold")).pack(side="left")
         seletor = ctk.CTkSegmentedButton(linha, values=["Teste", "Oficial"], command=self._trocar_modo, width=240)
         seletor.set(self.modo.rotulo)
         seletor.pack(side="left")
@@ -312,16 +337,16 @@ class App(ctk.CTk):
             linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
             linha.pack(fill="x", pady=(0, 10))
             ctk.CTkLabel(linha, text="E-mail de teste", width=150, anchor="w",
-                         font=(FONTE, 13, "bold")).pack(side="left")
+                         font=(FONTE, 15, "bold")).pack(side="left")
             ctk.CTkEntry(linha, textvariable=self.var_email, width=360,
                          placeholder_text="seu.nome@einstein.br").pack(side="left")
         self.var_modelo = linha_de_arquivo(self.conteudo, "Modelo (.pptx)", self.modelo, self._conferir_arquivos,
                                            [("PowerPoint", "*.pptx")])
-        ctk.CTkLabel(self.conteudo, text="Arquivos e pastas", font=(FONTE, 14, "bold"), anchor="w").pack(
+        ctk.CTkLabel(self.conteudo, text="Arquivos e pastas", font=(FONTE, 16, "bold"), anchor="w").pack(
             fill="x", pady=(14, 4))
         self.quadro_arquivos = ctk.CTkFrame(self.conteudo)
         self.quadro_arquivos.pack(fill="x")
-        ctk.CTkButton(self.conteudo, text="Conferir de novo", width=150, fg_color="transparent", border_width=1,
+        ctk.CTkButton(self.conteudo, text="Conferir de novo", width=150, **tema.BOTAO_CONTORNO,
                       command=self._conferir_arquivos).pack(anchor="w", pady=8)
         self._conferir_arquivos()
 
@@ -356,14 +381,14 @@ class App(ctk.CTk):
             cor = COR_OK if ok else (COR_ERRO if obrigatorio else COR_AVISO)
             simbolo = "✓" if ok else ("✗" if obrigatorio else "!")
             ctk.CTkLabel(self.quadro_arquivos, text=simbolo, text_color=cor, width=30,
-                         font=(FONTE, 14, "bold")).grid(row=i, column=0, padx=(10, 0), pady=3)
+                         font=(FONTE, 16, "bold")).grid(row=i, column=0, padx=(10, 0), pady=3)
             ctk.CTkLabel(self.quadro_arquivos, text=rotulo, anchor="w", width=210).grid(row=i, column=1, sticky="w")
             ctk.CTkLabel(self.quadro_arquivos, text=caminho, anchor="w", text_color=COR_APAGADO).grid(
                 row=i, column=2, sticky="w", padx=(0, 10))
         n = len(self._itens_verificacao())
         if powerpoint_aberto():
             ctk.CTkLabel(self.quadro_arquivos, text="!", text_color=COR_AVISO, width=30,
-                         font=(FONTE, 14, "bold")).grid(row=n, column=0, padx=(10, 0), pady=3)
+                         font=(FONTE, 16, "bold")).grid(row=n, column=0, padx=(10, 0), pady=3)
             ctk.CTkLabel(self.quadro_arquivos, anchor="w", text_color=COR_AVISO,
                          text="O PowerPoint está aberto. Salve e feche as apresentações antes de gerar.").grid(
                 row=n, column=1, columnspan=2, sticky="w")
@@ -400,8 +425,8 @@ class App(ctk.CTk):
     # -- 2. Cursos --------------------------------------------------------------
 
     def montar_cursos(self):
-        self.cabecalho("Cursos", "Escolha o semestre e marque os cursos desta rodada. A data de emissão sai "
-                                 "impressa em todos os certificados.")
+        self.cabecalho("Cursos", "Escolha o semestre e marque os cursos desta rodada. Ao lado de cada curso aparecem "
+                                 "os meses já enviados.")
         self.var_mestre = linha_de_arquivo(self.conteudo, "Planilha mestre", self.mestre, self._trocar_mestre,
                                            [("Excel", "*.xlsx")])
         linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
@@ -412,19 +437,27 @@ class App(ctk.CTk):
         self.combo_aba.pack(side="left")
         ctk.CTkLabel(linha, text="Data de emissão", anchor="w").pack(side="left", padx=(30, 8))
         self.var_data = ctk.StringVar(value=self.data_emissao)
-        ctk.CTkEntry(linha, textvariable=self.var_data, width=110).pack(side="left")
+        ctk.CTkEntry(linha, textvariable=self.var_data, width=130).pack(side="left")
 
         cab = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        cab.pack(fill="x", pady=(12, 4))
-        self.rotulo_marcados = ctk.CTkLabel(cab, text="", font=(FONTE, 13, "bold"), anchor="w")
+        cab.pack(fill="x", pady=(14, 6))
+        self.rotulo_marcados = ctk.CTkLabel(cab, text="", font=(FONTE, 16, "bold"), anchor="w")
         self.rotulo_marcados.pack(side="left")
+        self.var_esconder = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(cab, text="Esconder os já enviados em", variable=self.var_esconder,
+                        command=self._desenhar_cursos).pack(side="left", padx=(24, 6))
+        self.combo_mes_enviado = ctk.CTkComboBox(cab, values=[], width=110, command=lambda _: self._desenhar_cursos())
+        self.combo_mes_enviado.pack(side="left")
         self.var_filtro = ctk.StringVar()
         self.var_filtro.trace_add("write", lambda *_: self._desenhar_cursos())
-        ctk.CTkEntry(cab, textvariable=self.var_filtro, placeholder_text="procurar curso…", width=220).pack(
+        ctk.CTkEntry(cab, textvariable=self.var_filtro, placeholder_text="procurar curso…", width=230).pack(
             side="right")
         self.lista_cursos = ctk.CTkScrollableFrame(self.conteudo)
         self.lista_cursos.pack(fill="both", expand=True, pady=(0, 4))
+        ctk.CTkLabel(self.conteudo, text="Verde = arquivado pelo fluxo  ·  Amarelo = gerado, ainda na Para Enviar",
+                     text_color=tema.APAGADO, font=(FONTE, 13), anchor="w").pack(fill="x")
         if self.abas_mestre:
+            self._preencher_meses_enviados()
             self._desenhar_cursos()
         else:
             self._carregar_abas()
@@ -453,7 +486,7 @@ class App(ctk.CTk):
         self.combo_aba.set(aba)
         if aba == self.aba and self.cursos:
             return
-        self.aba, self.cursos, self.marcados = aba, [], set()
+        self.aba, self.cursos, self.marcados, self.situacoes = aba, [], set(), None
         self.ocupado(f"Lendo os cursos da aba {aba}…")
         em_segundo_plano(self, lambda: planilhas.ler_cursos_da_mestre(self.mestre, aba), self._cursos_carregados)
 
@@ -463,27 +496,81 @@ class App(ctk.CTk):
         if cursos is None:
             self.status.configure(text=f"A aba {self.aba} não foi encontrada.", text_color=COR_ERRO)
         self._desenhar_cursos()
+        if self.cursos:
+            self.status.configure(text="Lendo o histórico de envios…")
+            cursos, locais = self.cursos, self.locais
+            em_segundo_plano(self, lambda: historico.situacao(locais, cursos),
+                             lambda s: self._situacao_carregada(cursos, s),
+                             lambda e, d: (self.registrar(f"Histórico não lido: {e}"),
+                                           self.status.configure(text="Não consegui ler o histórico de envios.")))
+
+    def _situacao_carregada(self, cursos, situacoes):
+        if cursos is not self.cursos:          # trocou de semestre enquanto lia
+            return
+        self.situacoes = situacoes
+        self.status.configure(text="")
+        if self.etapa == 1:
+            self._preencher_meses_enviados()
+            self._desenhar_cursos()
+
+    def _preencher_meses_enviados(self):
+        meses = historico.meses_conhecidos(self.situacoes or {})
+        rotulos = [historico.rotulo_mes(m) for m in meses]
+        self.combo_mes_enviado.configure(values=rotulos)
+        if rotulos and self.combo_mes_enviado.get() not in rotulos:
+            self.combo_mes_enviado.set(rotulos[0])
+
+    def _escondido(self, curso):
+        if not (self.var_esconder.get() and self.situacoes):
+            return False
+        rotulo = self.combo_mes_enviado.get()
+        return any(m.rotulo == rotulo for m in self.situacoes.get(curso.linha, []))
 
     def _desenhar_cursos(self):
         for w in self.lista_cursos.winfo_children():
             w.destroy()
         filtro = textos.normalizar(self.var_filtro.get())
+        escondidos = 0
         for c in self.cursos:
             if filtro and filtro not in textos.normalizar(f"{c.posgrad} {c.unidade} {c.coordenacao}"):
                 continue
+            if self._escondido(c):
+                escondidos += 1
+                continue
+            linha = ctk.CTkFrame(self.lista_cursos, fg_color="transparent", height=46)
+            linha.pack(fill="x", padx=6)
             var = ctk.BooleanVar(value=c.linha in self.marcados)
-            texto = f"{c.posgrad}   ·   {c.unidade_exibida}"
-            ctk.CTkCheckBox(self.lista_cursos, text=texto, variable=var,
-                            command=lambda c=c, v=var: self._marcar(c, v.get())).pack(anchor="w", pady=3, padx=4)
-        self._contar_marcados()
+            ctk.CTkCheckBox(linha, text=c.posgrad, variable=var, font=(FONTE, 15),
+                            command=lambda c=c, v=var: self._marcar(c, v.get())).pack(side="left", pady=8)
+            meses = ctk.CTkFrame(linha, fg_color="transparent")
+            meses.pack(side="right", padx=(8, 4))
+            if self.situacoes is None:
+                ctk.CTkLabel(meses, text="…", text_color=tema.APAGADO).pack(side="left")
+            elif not self.situacoes.get(c.linha):
+                ctk.CTkLabel(meses, text="nenhum envio registrado", text_color=tema.APAGADO,
+                             font=(FONTE, 13)).pack(side="left")
+            else:
+                for m in self.situacoes[c.linha][-3:]:
+                    if m.pendente:
+                        tema.chip(meses, f" {m.rotulo} · aguardando envio ", tema.AVISO, tema.AVISO_FUNDO).pack(
+                            side="left", padx=3)
+                    else:
+                        tema.chip(meses, f" {m.rotulo} ✓ {m.data} ", tema.OK, tema.OK_FUNDO).pack(side="left", padx=3)
+            unidade = c.sigla_unidade or c.unidade or "—"
+            tema.chip(linha, f" {unidade} ", tema.UNIDADE, tema.UNIDADE_FUNDO).pack(side="right", padx=8)
+            ctk.CTkFrame(self.lista_cursos, fg_color=tema.LINHA, height=1, corner_radius=0).pack(fill="x", padx=6)
+        self._contar_marcados(escondidos)
 
     def _marcar(self, curso, marcado):
         (self.marcados.add if marcado else self.marcados.discard)(curso.linha)
         self._contar_marcados()
 
-    def _contar_marcados(self):
+    def _contar_marcados(self, escondidos=None):
+        if escondidos is not None:
+            self._escondidos = escondidos
+        extra = f"  ·  {self._escondidos} escondido(s)" if getattr(self, "_escondidos", 0) else ""
         self.rotulo_marcados.configure(text=f"{len(self.cursos)} cursos na aba {self.aba or '—'}  ·  "
-                                            f"{len(self.marcados)} marcado(s)")
+                                            f"{len(self.marcados)} marcado(s){extra}")
 
     def avancar_cursos(self):
         data = self.var_data.get().strip()
@@ -537,7 +624,7 @@ class App(ctk.CTk):
         botoes.pack(fill="x", pady=8)
         ctk.CTkButton(botoes, text="Escolher assinatura…", command=self._escolher_assinatura).pack(side="left")
         ctk.CTkButton(botoes, text="Dr. / Dra.", command=self._escolher_titulo).pack(side="left", padx=8)
-        ctk.CTkButton(botoes, text="Tirar do lote / devolver", fg_color="transparent", border_width=1,
+        ctk.CTkButton(botoes, text="Tirar do lote / devolver", **tema.BOTAO_CONTORNO,
                       command=self._tirar_ou_devolver).pack(side="left")
         self._desenhar_coordenadores()
 
@@ -699,7 +786,7 @@ class App(ctk.CTk):
                                                           ("meses", "Meses na planilha", 200)], alturas=9)
         quadro.pack(fill="both", expand=True)
         self.arvore_plan.bind("<Double-1>", self._trocar_planilha)
-        ctk.CTkLabel(self.conteudo, text="Meses desta rodada", font=(FONTE, 14, "bold"), anchor="w").pack(
+        ctk.CTkLabel(self.conteudo, text="Meses desta rodada", font=(FONTE, 16, "bold"), anchor="w").pack(
             fill="x", pady=(12, 2))
         self.quadro_meses = ctk.CTkFrame(self.conteudo, fg_color="transparent")
         self.quadro_meses.pack(fill="x")
@@ -823,7 +910,7 @@ class App(ctk.CTk):
         if not self.problemas:
             self.cabecalho("Conferir dados", "")
             ctk.CTkLabel(self.conteudo, text="✓  Nenhum problema encontrado nas planilhas.", text_color=COR_OK,
-                         font=(FONTE, 16, "bold"), anchor="w").pack(fill="x", pady=10)
+                         font=(FONTE, 18, "bold"), anchor="w").pack(fill="x", pady=10)
             ctk.CTkLabel(self.conteudo, anchor="w", text=f"Linhas prontas para gerar: {self.linhas_ok}\n"
                                                          f"Células mescladas lidas: {self.mescladas}",
                          justify="left").pack(fill="x")
@@ -832,9 +919,9 @@ class App(ctk.CTk):
                        f"{self.linhas_ok} linhas estão prontas. Linhas com ERRO (campo vazio ou inválido) começam como "
                        "PULAR: corrija para gerar. Linhas só com AVISO começam como GERAR ASSIM: confira e pule se "
                        "estiver errado.")
-        quadro, self.arvore_prob = tabela(self.conteudo, [("curso", "Curso", 200), ("mes", "Mês", 80),
-                                                          ("linha", "Linha", 50), ("docente", "Docente", 190),
-                                                          ("problema", "Problema", 330), ("decisao", "Decisão", 110)],
+        quadro, self.arvore_prob = tabela(self.conteudo, [("curso", "Curso", 180), ("mes", "Mês", 80),
+                                                          ("linha", "Linha", 60), ("docente", "Docente", 170),
+                                                          ("problema", "Problema", 280), ("decisao", "Decisão", 110)],
                                           alturas=12)
         quadro.pack(fill="both", expand=True)
         self.arvore_prob.bind("<Double-1>", lambda e: self._corrigir())
@@ -842,7 +929,7 @@ class App(ctk.CTk):
         botoes.pack(fill="x", pady=8)
         ctk.CTkButton(botoes, text="Corrigir…", command=self._corrigir).pack(side="left")
         ctk.CTkButton(botoes, text="Gerar assim", command=self._gerar_assim).pack(side="left", padx=8)
-        ctk.CTkButton(botoes, text="Pular", fg_color="transparent", border_width=1,
+        ctk.CTkButton(botoes, text="Pular", **tema.BOTAO_CONTORNO,
                       command=lambda: self._decidir(True)).pack(side="left")
         self._desenhar_problemas()
 
@@ -931,12 +1018,15 @@ class App(ctk.CTk):
         return com, sem - com
 
     def _ja_gerados(self):
-        """Curso/mês que já tem PDF na pasta local deste modo (rodada anterior)."""
+        """Curso/mês já enviado (histórico ou pasta arquivada) ou com PDF na pasta local deste modo."""
         achados = []
         for item in self.ativos:
+            enviados = {m.pasta_mes for m in (self.situacoes or {}).get(item.curso.linha, [])}
             for aba in item.abas:
-                pasta = os.path.join(self.modo.pasta_local, item.nome_com_unidade, textos.mes_para_pasta(aba))
-                if os.path.isdir(pasta) and any(n.lower().endswith(".pdf") for n in os.listdir(pasta)):
+                mes = textos.mes_para_pasta(aba)
+                pasta = os.path.join(self.modo.pasta_local, item.nome_com_unidade, mes)
+                if mes in enviados or (os.path.isdir(pasta) and any(n.lower().endswith(".pdf")
+                                                                    for n in os.listdir(pasta))):
                     achados.append(f"{item.curso.posgrad} / {aba}")
         return achados
 
@@ -960,12 +1050,12 @@ class App(ctk.CTk):
                                              self._a_gerar(item), len(com), len(sem)))
         repetidos = self._ja_gerados() if self.oficial else []
         if repetidos:
-            ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=COR_AVISO, wraplength=880,
+            tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=COR_AVISO,
                          text="Atenção: já existem certificados gerados para " + "; ".join(repetidos)
-                              + ". Gerar de novo manda os e-mails outra vez.").pack(fill="x", pady=(8, 0))
-        ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color="#adbac7", wraplength=880, text=(
+                              + ". Gerar de novo manda os e-mails outra vez.")).pack(fill="x", pady=(8, 0))
+        tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=tema.TEXTO_2, text=(
             f"Os PDFs vão para {self.modo.pasta_local} e para Para Enviar\\{self.modo.prefixo}<Curso>\\<Mês>. "
-            "O fluxo do Power Automate percebe o manifesto em alguns minutos e manda os e-mails.")).pack(
+            "O fluxo do Power Automate percebe o manifesto em alguns minutos e manda os e-mails."))).pack(
             fill="x", pady=(10, 4))
         self.barra = ctk.CTkProgressBar(self.conteudo)
         self.barra.set(0)
@@ -1040,6 +1130,9 @@ class App(ctk.CTk):
     def _gerado(self, relatorio):
         self.log.ecoar = None
         self.relatorio = relatorio
+        if self.oficial:
+            historico.registrar(self.locais, relatorio, log=self.registrar)
+            self.situacoes = None                 # relê na próxima rodada
         self.ir_para(RELATORIO)
 
     # -- 7. Relatório -----------------------------------------------------------
@@ -1049,20 +1142,20 @@ class App(ctk.CTk):
         falhou = [r for r in rel.cursos if r.falhou]
         ok = not falhou and not rel.falhas
         ctk.CTkLabel(self.conteudo, text="Geração concluída" if ok else "Geração concluída, com problemas",
-                     font=(FONTE, 22, "bold"), text_color=COR_OK if ok else COR_AVISO, anchor="w").pack(fill="x")
+                     font=(FONTE, 26, "bold"), text_color=COR_OK if ok else COR_AVISO, anchor="w").pack(fill="x")
         resumo = (f"{rel.total_gerados} PDF(s) gerado(s)  ·  data de emissão {rel.data_emissao}  ·  "
                   f"{len(falhou)} curso(s) com falha  ·  {len(rel.falhas)} certificado(s) com falha")
         ctk.CTkLabel(self.conteudo, text=resumo, anchor="w").pack(fill="x", pady=(2, 10))
         if self.modo.nome == "teste":
-            ctk.CTkLabel(self.conteudo, justify="left", anchor="w", wraplength=880, text_color="#adbac7", text=(
+            tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=tema.TEXTO_2, text=(
                 f"Agora o fluxo do Power Automate deve mandar os e-mails para {self.email_teste} em alguns minutos. "
                 f"Depois do envio ele guarda os PDFs em Declarações\\TESTE\\. Terminado o teste, você pode apagar "
-                f"{self.modo.pasta_local} e a pasta Declarações\\TESTE.")).pack(fill="x", pady=(0, 10))
+                f"{self.modo.pasta_local} e a pasta Declarações\\TESTE."))).pack(fill="x", pady=(0, 10))
         else:
-            ctk.CTkLabel(self.conteudo, justify="left", anchor="w", wraplength=880, text_color="#adbac7", text=(
+            tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=tema.TEXTO_2, text=(
                 "Agora o fluxo do Power Automate manda os e-mails para os docentes em alguns minutos e depois "
                 "arquiva os PDFs em Declarações\\<Semestre>\\<Local>\\<Pós>\\<Mês>. A cópia de segurança fica em "
-                f"{self.modo.pasta_local}.")).pack(fill="x", pady=(0, 10))
+                f"{self.modo.pasta_local}."))).pack(fill="x", pady=(0, 10))
         quadro, arvore = tabela(self.conteudo, [("curso", "Curso", 340), ("gerados", "Gerados", 90),
                                                 ("ignorados", "Ignorados", 90), ("sit", "Situação", 360)], alturas=8)
         quadro.pack(fill="both", expand=True)
@@ -1084,7 +1177,7 @@ class App(ctk.CTk):
         para_enviar = os.path.join(self.locais.declaracoes, "Para Enviar")
         for rotulo, caminho in (("Abrir pasta dos PDFs", self.modo.pasta_local), ("Abrir Para Enviar", para_enviar),
                                 ("Abrir log", rel.log)):
-            ctk.CTkButton(botoes, text=rotulo, fg_color="transparent", border_width=1,
+            ctk.CTkButton(botoes, text=rotulo, **tema.BOTAO_CONTORNO,
                           command=lambda c=caminho: self._abrir(c)).pack(side="left", padx=(0, 8))
         self.botao_avancar.configure(text="Nova rodada")
         self.registrar("Relatório mostrado.")

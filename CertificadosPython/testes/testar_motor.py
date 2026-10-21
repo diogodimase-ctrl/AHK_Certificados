@@ -9,6 +9,7 @@ Os valores esperados foram calculados à mão seguindo as regras do AHK v27.
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -16,7 +17,7 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from certificados import caminhos, coordenadores, gerador, horas, planilhas, textos  # noqa: E402
+from certificados import caminhos, coordenadores, gerador, historico, horas, planilhas, textos  # noqa: E402
 from testes import amostras  # noqa: E402
 
 TESTES = []
@@ -271,6 +272,37 @@ def certificado_preenchido():
         igual((run.text, run.font.size.pt, run.font.bold), ("Dra. Ana Beatriz Souza", 10.0, False))
         run = coord.text_frame.paragraphs[1].runs[0]
         igual((run.text, run.font.size.pt, run.font.bold), ("Coordenadora do Curso", 10.0, True))
+    finally:
+        shutil.rmtree(raiz, ignore_errors=True)
+
+
+@teste
+def historico_de_envios():
+    raiz, locais = _ambiente()
+    try:
+        cursos = planilhas.ler_cursos_da_mestre(locais.planilha_mestre, "2026-5")
+        cardio = cursos[0]
+        igual(historico.situacao(locais, cursos)[cardio.linha], [])
+        c, rel, _ = _gerar("oficial", ConversorFalso(), raiz, locais)
+        assert historico.registrar(locais, rel, log=lambda m: None)
+        # Gerado e ainda na Para Enviar: amarelo.
+        meses = historico.situacao(locais, cursos)[cardio.linha]
+        igual([(m.rotulo, m.pendente) for m in meses], [("Abr26", True)])
+        # O fluxo arquivou e apagou a pasta da Para Enviar: verde, com a data do envio.
+        destino = os.path.join(locais.declaracoes, "2026-1", "PTA", "Cardiologia Clínica", "04.26")
+        shutil.move(os.path.join(locais.declaracoes, "Para Enviar", c.nome_com_unidade, "04.26"), destino)
+        meses = historico.situacao(locais, cursos)[cardio.linha]
+        igual([(m.rotulo, m.pendente) for m in meses], [("Abr26", False)])
+        assert re.match(r"\d\d/\d\d$", meses[0].data), meses[0].data
+        # Pasta arquivada sem histórico (envio do AHK) também conta; outro curso não é afetado.
+        os.makedirs(os.path.join(locais.declaracoes, "2026-1", "PTA", "Cardiologia Clínica", "03.26"))
+        with open(os.path.join(locais.declaracoes, "2026-1", "PTA", "Cardiologia Clínica", "03.26", "a.pdf"), "w"):
+            pass
+        sit = historico.situacao(locais, cursos)
+        igual([m.rotulo for m in sit[cardio.linha]], ["Mar26", "Abr26"])
+        igual(sit[cursos[1].linha], [])
+        igual(historico.meses_conhecidos(sit), ["04.26", "03.26"])
+        igual(historico.rotulo_mes("10.26"), "Out26")
     finally:
         shutil.rmtree(raiz, ignore_errors=True)
 

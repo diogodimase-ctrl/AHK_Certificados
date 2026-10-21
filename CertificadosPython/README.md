@@ -5,12 +5,24 @@ Versão em Python do `GerarCertificados` (AHK v27). Em construção, por etapas:
 1. **Motor** (pronto, em conferência): lê as planilhas, aplica as mesmas regras do AHK,
    preenche o modelo `.pptx` sem abrir o PowerPoint, gera o PDF e o `manifesto.txt`
    igual ao da v27 (o fluxo do Power Automate não muda).
-2. **Programa novo**: `programa.py`, empacotado em `Certificados.zip`. Uma janela com
-   as etapas na lateral (Início, Cursos, Coordenadores, Planilhas e meses, Conferir
-   dados, Gerar e Relatório). Na tela de Início escolhe-se o modo: Teste (padrão,
-   igual à TESTE_v7) ou Oficial (igual à v27; avisa se o curso/mês já foi gerado).
-   O e-mail de teste fica guardado em `%APPDATA%\CertificadosPython\config.json`.
-3. Programa para distribuir para a equipe.
+2. **Programa novo**: `programa.py`. Uma janela com as etapas na lateral (Início,
+   Cursos, Coordenadores, Planilhas e meses, Conferir dados, Gerar e Relatório), no
+   estilo "Escuro violeta" (`tema.py` tem todas as cores e fontes). Na tela de Início
+   escolhe-se o modo: Teste (padrão, igual à TESTE_v7) ou Oficial (igual à v27).
+   A tela de Cursos mostra os meses já enviados de cada curso
+   (`certificados/historico.py`: histórico em `Declarações\_Programa Certificados\historico.jsonl`
+   mais as pastas arquivadas pelo fluxo). O e-mail de teste fica em
+   `%APPDATA%\CertificadosPython\config.json`.
+3. **Instalador** (`instalador/`): instala sem senha de administrador, com atalho na
+   Área de Trabalho e no menu Iniciar. Cada versão é publicada na página Releases do
+   GitHub, e o programa avisa quando há uma versão nova (`atualizacao.py`).
+
+## Publicar uma versão nova
+
+1. Aumentar `VERSAO` em `certificados/__init__.py`.
+2. `python instalador\montar.py` (precisa do Inno Setup 6) — gera
+   `dist_instalador\Instalar-Certificados-<versão>.exe`.
+3. `gh release create v<versão> dist_instalador\Instalar-Certificados-<versão>.exe --title "Certificados <versão>" --notes "..."`.
 
 ## Pastas
 
