@@ -5,11 +5,11 @@ Versão em Python do `GerarCertificados` (AHK v27). Em construção, por etapas:
 1. **Motor** (pronto, em conferência): lê as planilhas, aplica as mesmas regras do AHK,
    preenche o modelo `.pptx` sem abrir o PowerPoint, gera o PDF e o `manifesto.txt`
    igual ao da v27 (o fluxo do Power Automate não muda).
-2. **Programa novo** (em teste): `programa.py`, empacotado em `CertificadosTeste.zip`.
-   Por enquanto só no modo teste (igual à TESTE_v7 do AHK). Uma janela com as
-   etapas na lateral: Início, Cursos, Coordenadores, Planilhas e meses, Conferir
-   dados, Gerar e Relatório. O e-mail de teste fica guardado em
-   `%APPDATA%\CertificadosPython\config.json`.
+2. **Programa novo**: `programa.py`, empacotado em `Certificados.zip`. Uma janela com
+   as etapas na lateral (Início, Cursos, Coordenadores, Planilhas e meses, Conferir
+   dados, Gerar e Relatório). Na tela de Início escolhe-se o modo: Teste (padrão,
+   igual à TESTE_v7) ou Oficial (igual à v27; avisa se o curso/mês já foi gerado).
+   O e-mail de teste fica guardado em `%APPDATA%\CertificadosPython\config.json`.
 3. Programa para distribuir para a equipe.
 
 ## Pastas

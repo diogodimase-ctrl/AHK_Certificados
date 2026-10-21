@@ -1,13 +1,15 @@
 """
 Certificados — o programa novo (Etapa 2), no lugar do GerarCertificados do AHK.
 
-Por enquanto só no MODO TESTE (igual à TESTE_v7): os PDFs ganham "TESTE - " no
-nome, ficam em C:\\Certificados_TESTE e em "Para Enviar\\TESTE - <Curso>\\<Mês>",
-e no manifesto o e-mail de todos os docentes vira o e-mail de teste. O fluxo do
-Power Automate manda tudo só para esse e-mail.
+Dois modos, escolhidos na tela de Início:
+  Teste    igual à TESTE_v7: os PDFs ganham "TESTE - " no nome, ficam em
+           C:\\Certificados_TESTE e em "Para Enviar\\TESTE - <Curso>\\<Mês>", e no
+           manifesto o e-mail de todos os docentes vira o e-mail de teste.
+  Oficial  igual à v27: C:\\Certificados (com a cópia por docente) e
+           "Para Enviar\\<Curso>\\<Mês>"; o fluxo manda os e-mails para os docentes.
 
 Uma janela só, com as etapas na lateral (os mesmos passos do AHK):
-  1. Início           e-mail de teste e arquivos necessários (Passo 0 + verificação)
+  1. Início           modo, e-mail de teste e arquivos necessários (Passo 0 + verificação)
   2. Cursos           planilha mestre, semestre, data de emissão e cursos (Passos 1–3)
   3. Coordenadores    quem assina cada curso (Passo 4)
   4. Planilhas        planilha de cada curso e meses (Passos 5–7)
@@ -141,7 +143,6 @@ class App(ctk.CTk):
         super().__init__()
         ctk.set_appearance_mode("dark")
         self.modo = gerador.MODOS[modo]
-        self.title(f"Certificados — modo {self.modo.rotulo} (versão {VERSAO})")
         self.geometry("1200x760")
         self.minsize(1000, 640)
         self.after(0, lambda: self.state("zoomed"))
@@ -180,10 +181,9 @@ class App(ctk.CTk):
 
         direita = ctk.CTkFrame(self, fg_color="transparent")
         direita.pack(side="left", fill="both", expand=True)
-        if self.modo.nome == "teste":
-            ctk.CTkLabel(direita, text="MODO TESTE  ·  nada vai para os docentes: todos os e-mails vão para o "
-                                       "e-mail de teste", fg_color=COR_AVISO, text_color="#1c1c1c",
-                         font=(FONTE, 12, "bold"), height=30).pack(fill="x")
+        self.faixa = ctk.CTkLabel(direita, text="", font=(FONTE, 12, "bold"), height=30)
+        self.faixa.pack(fill="x")
+        self._aplicar_modo()
         self.conteudo = ctk.CTkFrame(direita, fg_color="transparent")
         self.conteudo.pack(fill="both", expand=True, padx=24, pady=(14, 0))
         rodape = ctk.CTkFrame(direita, fg_color="transparent")
@@ -196,6 +196,20 @@ class App(ctk.CTk):
         self.botao_avancar.pack(side="right")
         self.status = ctk.CTkLabel(rodape, text="", anchor="w", text_color=COR_APAGADO)
         self.status.pack(side="left", fill="x", expand=True, padx=16)
+
+    def _aplicar_modo(self):
+        """Título da janela e faixa do alto: amarela no teste, vermelha no oficial."""
+        self.title(f"Certificados — modo {self.modo.rotulo} (versão {VERSAO})")
+        if self.modo.nome == "teste":
+            self.faixa.configure(text="MODO TESTE  ·  nada vai para os docentes: todos os e-mails vão para o "
+                                      "e-mail de teste", fg_color=COR_AVISO, text_color="#1c1c1c")
+        else:
+            self.faixa.configure(text="MODO OFICIAL  ·  os e-mails vão para os docentes de verdade",
+                                 fg_color=COR_ERRO, text_color="#ffffff")
+
+    @property
+    def oficial(self):
+        return self.modo.nome == "oficial"
 
     # -- estado e navegação ---------------------------------------------------
 
@@ -210,7 +224,7 @@ class App(ctk.CTk):
         self.abas_por_planilha, self.erros_planilha = {}, {}
         self.meses_marcados = set()
         self.problemas, self.mescladas, self.linhas_ok = [], 0, 0
-        self.relatorio, self.log, self.cancelar = None, None, False
+        self.relatorio, self.log, self.modo_do_log, self.cancelar = None, None, "", False
         self.ir_para(0)
 
     @property
@@ -278,15 +292,29 @@ class App(ctk.CTk):
     # -- 1. Início --------------------------------------------------------------
 
     def montar_inicio(self):
-        self.cabecalho("Antes de começar",
-                       "Os certificados são gerados normalmente, mas no manifesto o e-mail de TODOS os docentes é "
-                       "trocado pelo e-mail abaixo. Assim, o Power Automate manda tudo só para esse endereço.")
+        if self.oficial:
+            self.cabecalho("Antes de começar",
+                           "Modo oficial: os certificados vão para a Para Enviar e o Power Automate manda os e-mails "
+                           "para os docentes, como na v27 do AHK. Para experimentar sem enviar nada, escolha Teste.")
+        else:
+            self.cabecalho("Antes de começar",
+                           "Modo teste: os certificados são gerados normalmente, mas no manifesto o e-mail de TODOS os "
+                           "docentes é trocado pelo e-mail abaixo. Assim, o Power Automate manda tudo só para esse "
+                           "endereço.")
         linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
         linha.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(linha, text="E-mail de teste", width=150, anchor="w", font=(FONTE, 13, "bold")).pack(side="left")
+        ctk.CTkLabel(linha, text="Modo", width=150, anchor="w", font=(FONTE, 13, "bold")).pack(side="left")
+        seletor = ctk.CTkSegmentedButton(linha, values=["Teste", "Oficial"], command=self._trocar_modo, width=240)
+        seletor.set(self.modo.rotulo)
+        seletor.pack(side="left")
         self.var_email = ctk.StringVar(value=self.email_teste)
-        ctk.CTkEntry(linha, textvariable=self.var_email, width=360, placeholder_text="seu.nome@einstein.br").pack(
-            side="left")
+        if not self.oficial:
+            linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
+            linha.pack(fill="x", pady=(0, 10))
+            ctk.CTkLabel(linha, text="E-mail de teste", width=150, anchor="w",
+                         font=(FONTE, 13, "bold")).pack(side="left")
+            ctk.CTkEntry(linha, textvariable=self.var_email, width=360,
+                         placeholder_text="seu.nome@einstein.br").pack(side="left")
         self.var_modelo = linha_de_arquivo(self.conteudo, "Modelo (.pptx)", self.modelo, self._conferir_arquivos,
                                            [("PowerPoint", "*.pptx")])
         ctk.CTkLabel(self.conteudo, text="Arquivos e pastas", font=(FONTE, 14, "bold"), anchor="w").pack(
@@ -296,6 +324,15 @@ class App(ctk.CTk):
         ctk.CTkButton(self.conteudo, text="Conferir de novo", width=150, fg_color="transparent", border_width=1,
                       command=self._conferir_arquivos).pack(anchor="w", pady=8)
         self._conferir_arquivos()
+
+    def _trocar_modo(self, rotulo):
+        novo = "oficial" if rotulo == "Oficial" else "teste"
+        if novo == self.modo.nome:
+            return
+        self.email_teste, self.modelo = self.var_email.get().strip(), self.var_modelo.get()
+        self.modo = gerador.MODOS[novo]
+        self._aplicar_modo()
+        self.ir_para(0)
 
     def _itens_verificacao(self):
         """(rótulo, caminho, ok, obrigatório). Igual à VerificacaoPreRodagem do AHK."""
@@ -333,23 +370,31 @@ class App(ctk.CTk):
 
     def avancar_inicio(self):
         email = self.var_email.get().strip()
-        if not textos.email_valido(email):
+        if not self.oficial and not textos.email_valido(email):
             avisar(self, "E-mail inválido", "Digite um e-mail de teste válido, por exemplo seu.nome@einstein.br.")
             return
         faltando = [f"• {rot}: {cam}" for rot, cam, ok, obrig in self._itens_verificacao() if obrig and not ok]
         if faltando:
             avisar(self, "Falta algum arquivo", "Sem estes itens não dá para gerar:\n\n" + "\n".join(faltando))
             return
-        if perguntar(self, "Confirmar e-mail de teste",
-                     f"Todos os e-mails do manifesto irão para:\n\n{email}\n\nEstá correto?",
-                     [("Corrigir", None), ("Sim, continuar", True)]) is not True:
+        if self.oficial:
+            pergunta = ("Modo oficial", "Nesta rodada os e-mails vão para os DOCENTES de verdade.\n\n"
+                                        "Antes de gerar, o programa ainda mostra o resumo e pede confirmação.",
+                        [("Voltar", None), ("Entendi, continuar", True)])
+        else:
+            pergunta = ("Confirmar e-mail de teste",
+                        f"Todos os e-mails do manifesto irão para:\n\n{email}\n\nEstá correto?",
+                        [("Corrigir", None), ("Sim, continuar", True)])
+        if perguntar(self, *pergunta) is not True:
             return
         self.email_teste, self.modelo = email, self.var_modelo.get()
-        self.config_usuario["email_teste"] = email
-        gravar_config(self.config_usuario)
-        if self.log is None:
-            self.log = gerador.Log(self.modo.nome)
-        self.registrar(f"MODO {self.modo.rotulo.upper()} — e-mails do manifesto: {email} | Modelo: {self.modelo}")
+        if not self.oficial:
+            self.config_usuario["email_teste"] = email
+            gravar_config(self.config_usuario)
+        if self.log is None or self.modo_do_log != self.modo.nome:
+            self.log, self.modo_do_log = gerador.Log(self.modo.nome), self.modo.nome
+        self.registrar(f"MODO {self.modo.rotulo.upper()}"
+                       + ("" if self.oficial else f" — e-mails do manifesto: {email}") + f" | Modelo: {self.modelo}")
         self.ir_para(1)
 
     # -- 2. Cursos --------------------------------------------------------------
@@ -875,16 +920,49 @@ class App(ctk.CTk):
     def _a_gerar(self, item):
         return sum(1 for a in item.dados.abas for r in a.registros if not r.pular and not r.tem_erro)
 
+    def _docentes(self, item):
+        """(docentes com e-mail válido, docentes sem e-mail) que vão ter certificado."""
+        com, sem = set(), set()
+        for a in item.dados.abas:
+            for r in a.registros:
+                if not r.pular and not r.tem_erro:
+                    chave = textos.sanitizar_nome_arquivo(r.nome).lower()
+                    (com if r.email_valido else sem).add(chave)
+        return com, sem - com
+
+    def _ja_gerados(self):
+        """Curso/mês que já tem PDF na pasta local deste modo (rodada anterior)."""
+        achados = []
+        for item in self.ativos:
+            for aba in item.abas:
+                pasta = os.path.join(self.modo.pasta_local, item.nome_com_unidade, textos.mes_para_pasta(aba))
+                if os.path.isdir(pasta) and any(n.lower().endswith(".pdf") for n in os.listdir(pasta)):
+                    achados.append(f"{item.curso.posgrad} / {aba}")
+        return achados
+
     def montar_gerar(self):
         total = sum(self._a_gerar(i) for i in self.ativos)
-        self.cabecalho("Gerar", f"{total} certificado(s) de teste em {len(self.ativos)} curso(s). "
-                                f"Data de emissão: {self.data_emissao}. E-mails para: {self.email_teste}")
-        quadro, arvore = tabela(self.conteudo, [("curso", "Curso", 320), ("assina", "Assina", 260),
-                                                ("meses", "Meses", 160), ("n", "Certificados", 100)], alturas=6)
+        if self.oficial:
+            com = sum(len(self._docentes(i)[0]) for i in self.ativos)
+            texto = (f"{total} certificado(s) em {len(self.ativos)} curso(s). Data de emissão: {self.data_emissao}. "
+                     f"{com} docente(s) vão receber e-mail.")
+        else:
+            texto = (f"{total} certificado(s) de teste em {len(self.ativos)} curso(s). "
+                     f"Data de emissão: {self.data_emissao}. E-mails para: {self.email_teste}")
+        self.cabecalho("Gerar", texto)
+        colunas = [("curso", "Curso", 270), ("assina", "Assina", 210), ("meses", "Meses", 120),
+                   ("n", "Certificados", 90), ("email", "Recebem e-mail", 110), ("sem", "Sem e-mail", 90)]
+        quadro, arvore = tabela(self.conteudo, colunas, alturas=6)
         quadro.pack(fill="x")
         for item in self.ativos:
-            arvore.insert("", "end", values=(item.curso.posgrad, item.coordenacao.assina_como,
-                                             ", ".join(item.abas), self._a_gerar(item)))
+            com, sem = self._docentes(item)
+            arvore.insert("", "end", values=(item.curso.posgrad, item.coordenacao.assina_como, ", ".join(item.abas),
+                                             self._a_gerar(item), len(com), len(sem)))
+        repetidos = self._ja_gerados() if self.oficial else []
+        if repetidos:
+            ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color=COR_AVISO, wraplength=880,
+                         text="Atenção: já existem certificados gerados para " + "; ".join(repetidos)
+                              + ". Gerar de novo manda os e-mails outra vez.").pack(fill="x", pady=(8, 0))
         ctk.CTkLabel(self.conteudo, justify="left", anchor="w", text_color="#adbac7", wraplength=880, text=(
             f"Os PDFs vão para {self.modo.pasta_local} e para Para Enviar\\{self.modo.prefixo}<Curso>\\<Mês>. "
             "O fluxo do Power Automate percebe o manifesto em alguns minutos e manda os e-mails.")).pack(
@@ -894,8 +972,8 @@ class App(ctk.CTk):
         self.barra.pack(fill="x", pady=(6, 4))
         self.caixa_log = ctk.CTkTextbox(self.conteudo, font=("Consolas", 11), height=200)
         self.caixa_log.pack(fill="both", expand=True, pady=(4, 0))
-        self.botao_avancar.configure(text="Gerar certificados de teste" if self.modo.nome == "teste"
-                                     else "Gerar certificados")
+        self.botao_avancar.configure(text="Gerar e enviar aos docentes" if self.oficial
+                                     else "Gerar certificados de teste")
         self.botao_voltar.configure(state="normal", command=lambda: self.ir_para(4))
 
     def _escrever_log(self, msg):
@@ -908,16 +986,29 @@ class App(ctk.CTk):
             avisar(self, "Nada para gerar", "Todas as linhas foram puladas.")
             return
         aviso_ppt = "\n\nO PowerPoint está aberto: salve e feche as apresentações antes." if powerpoint_aberto() else ""
-        if perguntar(self, "Gerar agora?", f"Gerar {total} certificado(s) de teste e mandar o manifesto para o "
-                                           f"fluxo?\n\nOs e-mails vão para: {self.email_teste}{aviso_ppt}",
-                     [("Ainda não", None), ("Gerar", True)]) is not True:
+        if self.oficial:
+            com = sum(len(self._docentes(i)[0]) for i in self.ativos)
+            cursos = "\n".join(f"• {i.curso.posgrad} ({', '.join(i.abas)})" for i in self.ativos)
+            repetidos = self._ja_gerados()
+            aviso_rep = ("\n\nATENÇÃO: já gerados antes (os e-mails vão de novo):\n"
+                         + "\n".join(f"• {r}" for r in repetidos)) if repetidos else ""
+            pergunta = ("Enviar para os docentes?",
+                        f"{total} certificado(s) e e-mail para {com} docente(s) de verdade:\n\n{cursos}"
+                        f"{aviso_rep}{aviso_ppt}",
+                        [("Ainda não", None), (f"Enviar para {com} docente(s)", True)])
+        else:
+            pergunta = ("Gerar agora?", f"Gerar {total} certificado(s) de teste e mandar o manifesto para o "
+                                        f"fluxo?\n\nOs e-mails vão para: {self.email_teste}{aviso_ppt}",
+                        [("Ainda não", None), ("Gerar", True)])
+        if perguntar(self, *pergunta) is not True:
             return
+        self.registrar(f"Geração confirmada: {total} certificado(s), modo {self.modo.rotulo}")
         self.ocupado("Gerando…")
         self.cancelar = False
         self.botao_voltar.configure(state="normal", text="Parar", command=self._parar)
         self.log.ecoar = self._escrever_log
         lote = self.ativos
-        for item in lote:                      # teste anterior do mesmo curso/mês sai da pasta local
+        for item in ([] if self.oficial else lote):   # teste anterior do mesmo curso/mês sai da pasta local
             for aba in item.abas:
                 shutil.rmtree(os.path.join(self.modo.pasta_local, item.nome_com_unidade, textos.mes_para_pasta(aba)),
                               ignore_errors=True)
@@ -929,7 +1020,7 @@ class App(ctk.CTk):
         def trabalho():
             with ConversorPowerPoint(log=self.log) as conv:
                 return gerador.gerar(lote, self.locais, self.modelo, self.data_emissao, self.modo, conv, self.log,
-                                     email_teste=self.email_teste, progresso=progresso,
+                                     email_teste="" if self.oficial else self.email_teste, progresso=progresso,
                                      cancelado=lambda: self.cancelar)
 
         em_segundo_plano(self, trabalho, self._gerado, self._falhou_geracao)
@@ -967,6 +1058,11 @@ class App(ctk.CTk):
                 f"Agora o fluxo do Power Automate deve mandar os e-mails para {self.email_teste} em alguns minutos. "
                 f"Depois do envio ele guarda os PDFs em Declarações\\TESTE\\. Terminado o teste, você pode apagar "
                 f"{self.modo.pasta_local} e a pasta Declarações\\TESTE.")).pack(fill="x", pady=(0, 10))
+        else:
+            ctk.CTkLabel(self.conteudo, justify="left", anchor="w", wraplength=880, text_color="#adbac7", text=(
+                "Agora o fluxo do Power Automate manda os e-mails para os docentes em alguns minutos e depois "
+                "arquiva os PDFs em Declarações\\<Semestre>\\<Local>\\<Pós>\\<Mês>. A cópia de segurança fica em "
+                f"{self.modo.pasta_local}.")).pack(fill="x", pady=(0, 10))
         quadro, arvore = tabela(self.conteudo, [("curso", "Curso", 340), ("gerados", "Gerados", 90),
                                                 ("ignorados", "Ignorados", 90), ("sit", "Situação", 360)], alturas=8)
         quadro.pack(fill="both", expand=True)
