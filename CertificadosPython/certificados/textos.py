@@ -84,6 +84,18 @@ def separar_coordenadores(texto):
     return [c.strip() for c in re.split(r"[,/\\]", str(texto or "")) if c.strip()]
 
 
+def sem_titulo(nome):
+    """Tira "Dr."/"Dra."/"Prof." do começo do nome ("Dra. Ana" -> "Ana").
+    O título que vale é o do cadastro; sem isso saía "Dra. Dra. Ana" (o AHK
+    tem esse defeito quando a planilha mestre já traz o título)."""
+    anterior = None
+    nome = str(nome or "").strip()
+    while nome != anterior:
+        anterior = nome
+        nome = re.sub(r"^(dra|dr|profa|professora|professor|prof)\.?\s+", "", nome, flags=re.I).strip()
+    return nome
+
+
 def juntar_nomes(lista):
     """JuntarNomes: "A", "A ou B", "A, B ou C"."""
     if len(lista) <= 1:

@@ -136,6 +136,8 @@ def coordenadores_e_cadastro():
         cad = coordenadores.Cadastro(locais.assinaturas, log=lambda m: None)
         ana = coordenadores.resolver("Dra. Ana Beatriz Souza", cad, log=lambda m: None)
         igual((ana.nome, ana.titulo, ana.origem, ana.pendente), ("Dra. Ana Beatriz Souza", "Dra.", "pelo nome", ""))
+        igual(ana.assina_como, "Dra. Ana Beatriz Souza")       # sem "Dra. Dra."
+        igual(textos.sem_titulo("Prof. Dr. João Silva"), "João Silva")
         igual(ana.cargo, "Coordenadora do Curso")
         psi = coordenadores.resolver("Carlos Mendes / Paula Ribeiro", cad, log=lambda m: None)
         igual((psi.nome, psi.pendente), ("Paula Ribeiro", "titulo"))

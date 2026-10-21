@@ -163,7 +163,7 @@ class Coordenacao:
 
     @property
     def assina_como(self):
-        return f"{self.titulo} {self.nome}".strip()
+        return f"{self.titulo} {textos.sem_titulo(self.nome)}".strip()
 
 
 def resolver(coordenacao_bruta, cadastro, log=print):
