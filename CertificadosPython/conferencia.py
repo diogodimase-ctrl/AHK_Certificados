@@ -113,6 +113,8 @@ class AbaModelo:
         self.resumo = ctk.CTkLabel(botoes, text="", font=(FONTE, 13, "bold"))
         self.resumo.pack(side="left", padx=12)
 
+        self.diagnostico = ctk.CTkLabel(pai, text="", anchor="w", justify="left", text_color=COR_APAGADO)
+        self.diagnostico.pack(fill="x", padx=16)
         quadro, self.arvore = tabela(pai, [("forma", "Forma", 330), ("ahk", "AHK (esq, topo, larg, alt)", 230),
                                            ("py", "Python", 230), ("res", "Resultado", 100)])
         quadro.pack(fill="both", expand=True, padx=16, pady=(0, 16))
@@ -144,7 +146,7 @@ class AbaModelo:
                          lambda e, d: (self.app.mostrar_erro(e, d), self.botao.configure(state="normal", text="Comparar modelo")))
 
     def _mostrar(self, resultado):
-        linhas, pior, self.arquivos = resultado
+        linhas, pior, self.arquivos, diagnostico = resultado
         for forma, va, vp, ok in linhas:
             self.arvore.insert("", "end", values=(forma, va or "—", vp or "—", "igual" if ok else "DIFERENTE"),
                                tags=("ok" if ok else "erro",))
@@ -154,7 +156,9 @@ class AbaModelo:
                               text_color=COR_OK if ok else COR_ERRO)
         self.botao.configure(state="normal", text="Comparar modelo")
         self.botao_abrir.configure(state="normal")
-        self.app.registrar_resultado("Modelo", f"{'igual' if ok else 'DIFERENTE'} (maior diferença {pior:.1f} pt)")
+        self.diagnostico.configure(text="\n".join(diagnostico))
+        self.app.registrar_resultado("Modelo", f"{'igual' if ok else 'DIFERENTE'} (maior diferença {pior:.1f} pt)"
+                                     + "".join(f" | {d}" for d in diagnostico))
 
     def abrir(self):
         if self.arquivos:

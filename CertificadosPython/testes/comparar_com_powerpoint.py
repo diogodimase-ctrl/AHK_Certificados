@@ -23,7 +23,7 @@ def main():
         locais = amostras.criar_ambiente(tempfile.mkdtemp())
         caminho_modelo, logo = locais.modelo, locais.logo
         assinatura = os.path.join(locais.assinaturas, "Ana Beatriz Souza.png")
-    linhas, pior, _ = referencia_ahk.comparar_modelo(
+    linhas, pior, _, diagnostico = referencia_ahk.comparar_modelo(
         caminho_modelo, "Dra. Ana Beatriz Souza", "Coordenadora do Curso", "20/10/2026", assinatura, logo)
     print(f"{'forma':42} {'AHK (esq, topo, larg, alt)':34} Python")
     for chave, va, vp, ok in linhas:

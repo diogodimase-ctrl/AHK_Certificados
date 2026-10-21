@@ -105,7 +105,8 @@ def _formas(caminho):
 
 
 def comparar_modelo(caminho_modelo, coordenador, cargo, data, assinatura, logo):
-    """Devolve (linhas, maior_diferença). Cada linha: (forma, ahk, python, ok)."""
+    """Devolve (linhas, maior_diferença, (arquivo_ahk, arquivo_python), diagnóstico).
+    Cada linha: (forma, ahk, python, ok)."""
     import comtypes
     import comtypes.client
     pasta = tempfile.mkdtemp(prefix="cert_comparar_")
@@ -116,8 +117,10 @@ def comparar_modelo(caminho_modelo, coordenador, cargo, data, assinatura, logo):
         modelo_base_como_ahk(app, caminho_modelo, coordenador, cargo, data, assinatura, logo, ahk)
     finally:
         comtypes.CoUninitialize()
+    diagnostico = []
     with open(py, "wb") as f:
-        f.write(modelo.criar_modelo_base(caminho_modelo, coordenador, cargo, data, assinatura, logo))
+        f.write(modelo.criar_modelo_base(caminho_modelo, coordenador, cargo, data, assinatura, logo,
+                                         diagnostico=diagnostico))
     a, p = _formas(ahk), _formas(py)
     linhas, pior = [], 0.0
     for chave in sorted(set(a) | set(p)):
@@ -127,4 +130,4 @@ def comparar_modelo(caminho_modelo, coordenador, cargo, data, assinatura, logo):
         dif = max(abs(x - y) for x, y in zip(va[:3], vp[:3])) if va and vp else float("inf")
         pior = max(pior, dif)
         linhas.append((chave, va, vp, dif <= TOLERANCIA_PT))
-    return linhas, pior, (ahk, py)
+    return linhas, pior, (ahk, py), diagnostico
