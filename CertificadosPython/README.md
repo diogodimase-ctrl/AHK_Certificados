@@ -1,5 +1,9 @@
 # Certificados em Python
 
+> **Mudou de lugar.** Desde a versão 0.3.1 o programa fica no repositório
+> [Certificados-Python](https://github.com/diogodimase-ctrl/Certificados-Python)
+> (instalador na raiz). Esta pasta ficou como estava na 0.3.0 e não recebe mais mudanças.
+
 Versão em Python do `GerarCertificados` (AHK v27). Em construção, por etapas:
 
 1. **Motor** (pronto, em conferência): lê as planilhas, aplica as mesmas regras do AHK,
