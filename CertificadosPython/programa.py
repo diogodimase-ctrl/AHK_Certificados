@@ -8,14 +8,15 @@ Dois modos, escolhidos na tela de Início:
   Oficial  igual à v27: C:\\Certificados (com a cópia por docente) e
            "Para Enviar\\<Curso>\\<Mês>"; o fluxo manda os e-mails para os docentes.
 
-Uma janela só, com as etapas na lateral (os mesmos passos do AHK):
-  1. Início           modo, e-mail de teste e arquivos necessários (Passo 0 + verificação)
-  2. Cursos           planilha mestre, semestre, data de emissão e cursos (Passos 1–3)
-  3. Coordenadores    quem assina cada curso (Passo 4)
-  4. Planilhas        planilha de cada curso e meses (Passos 5–7)
-  5. Conferir dados   linhas com problema: corrigir, gerar assim ou pular (Fase 2)
-  6. Gerar            PDFs, cópia para a Para Enviar e manifesto (Fase 3)
-  7. Relatório        (Passo 10)
+Uma janela só, com as etapas numa faixa no alto (os mesmos passos do AHK):
+  1. Início           painel do mês (cursos e certificados feitos), cursos da
+                      planilha mestre e data de emissão (Passos 0–3). Modo, e-mail
+                      de teste e arquivos ficam no selo "Arquivos e pastas" do alto.
+  2. Coordenadores    quem assina cada curso (Passo 4)
+  3. Planilhas        planilha de cada curso e meses (Passos 5–7)
+  4. Conferir dados   linhas com problema: corrigir, gerar assim ou pular (Fase 2)
+  5. Gerar            PDFs, cópia para a Para Enviar e manifesto (Fase 3)
+  6. Relatório        (Passo 10)
 """
 
 import ctypes
@@ -23,23 +24,26 @@ import json
 import os
 import shutil
 import sys
+import time
 import webbrowser
 from datetime import datetime
 from tkinter import filedialog
 
 import customtkinter as ctk
 
-from certificados import VERSAO, caminhos, coordenadores, gerador, historico, horas, planilhas, textos
+from certificados import (VERSAO, caminhos, coordenadores, economia, gerador, historico, horas, painel, planilhas,
+                          textos)
 from certificados.pdf import ConversorPowerPoint, powerpoint_aberto
 import atualizacao
 import tema
+from componentes import BarrasTempo, Etapas, PlanilhaCursos, Rosca
 from conferencia import em_segundo_plano, linha_de_arquivo
 from tema import FONTE, tabela
 
 COR_OK, COR_ERRO, COR_AVISO, COR_APAGADO = tema.OK, tema.ERRO, tema.AVISO, tema.APAGADO
 
-ETAPAS = ["Início", "Cursos", "Coordenadores", "Planilhas e meses", "Conferir dados", "Gerar", "Relatório"]
-GERAR, RELATORIO = 5, 6
+ETAPAS = ["Início", "Coordenadores", "Planilhas e meses", "Conferir dados", "Gerar", "Relatório"]
+GERAR, RELATORIO = 4, 5
 CONFIG = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "CertificadosPython", "config.json")
 
 
@@ -157,12 +161,17 @@ class App(ctk.CTk):
         if os.path.isfile(icone):
             self.after(300, lambda: self.iconbitmap(icone))     # o CustomTkinter põe o dele aos 200 ms
         self.modo = gerador.MODOS[modo]
-        self.geometry("1200x760")
-        self.minsize(1000, 640)
+        self.geometry("1280x800")
+        self.minsize(1100, 700)
         self.after(0, lambda: self.state("zoomed"))
         # CERTIFICADOS_RAIZ aponta para outra "raiz do OneDrive" (usado nos testes).
         self.locais = caminhos.Locais.descobrir(os.environ.get("CERTIFICADOS_RAIZ") or None)
         self.config_usuario = ler_config()
+        self.email_teste = self.config_usuario.get("email_teste", "")
+        self.mestre = self.locais.planilha_mestre
+        self.modelo = self.locais.modelo
+        self.previstos = {}                      # (aba, mês) -> {linha da mestre: certificados previstos}
+        self._contando = None
         self._estilo_tabelas()
         self._montar_janela()
         self.nova_rodada()
@@ -171,84 +180,182 @@ class App(ctk.CTk):
         tema.pintar_tabelas(self)
 
     def _montar_janela(self):
-        lateral = ctk.CTkFrame(self, width=250, corner_radius=0, fg_color=tema.LATERAL)
-        lateral.pack(side="left", fill="y")
-        lateral.pack_propagate(False)
-        ctk.CTkLabel(lateral, text="Certificados", font=(FONTE, 26, "bold"), anchor="w").pack(fill="x", padx=20,
-                                                                                            pady=(22, 0))
-        ctk.CTkLabel(lateral, text="Pós-graduação", text_color=COR_APAGADO, anchor="w").pack(fill="x", padx=20)
-        self.rotulos_etapas = []
-        caixa = ctk.CTkFrame(lateral, fg_color="transparent")
-        caixa.pack(fill="x", padx=12, pady=24)
-        for i, nome in enumerate(ETAPAS):
-            r = ctk.CTkLabel(caixa, text=f"  {i + 1}   {nome}", anchor="w", height=42, corner_radius=10,
-                             font=(FONTE, 16))
-            r.pack(fill="x", pady=2)
-            self.rotulos_etapas.append(r)
-        ctk.CTkLabel(lateral, text=f"versão {VERSAO}", text_color=COR_APAGADO, font=(FONTE, 12)).pack(
-            side="bottom", pady=12)
-        self.botao_atualizar = ctk.CTkButton(lateral, text="", height=40, fg_color=tema.OK_FUNDO,
+        self.faixa = ctk.CTkLabel(self, text="", font=(FONTE, 13, "bold"), height=30)
+        self.faixa.pack(fill="x")
+
+        topo = ctk.CTkFrame(self, corner_radius=0, fg_color=tema.LATERAL)
+        topo.pack(fill="x")
+        linha = ctk.CTkFrame(topo, fg_color="transparent")
+        linha.pack(fill="x", padx=32, pady=(12, 4))
+        ctk.CTkLabel(linha, text="Certificados · Pós-graduação", font=(FONTE, 20, "bold"),
+                     text_color=tema.TITULO).pack(side="left")
+        ctk.CTkLabel(linha, text=f"versão {VERSAO}", text_color=COR_APAGADO, font=(FONTE, 12)).pack(
+            side="left", padx=14)
+        self.seletor_modo = ctk.CTkSegmentedButton(linha, values=["Teste", "Oficial"], command=self._trocar_modo,
+                                                   width=200, height=34)
+        self.seletor_modo.set(self.modo.rotulo)
+        self.seletor_modo.pack(side="right")
+        self.chip_arquivos = ctk.CTkButton(linha, text="", height=32, corner_radius=16, font=(FONTE, 13, "bold"),
+                                           command=self.abrir_configuracoes)
+        self.chip_arquivos.pack(side="right", padx=12)
+        self.botao_atualizar = ctk.CTkButton(linha, text="", height=32, fg_color=tema.OK_FUNDO,
                                              hover_color="#1f4d40", text_color=tema.OK, font=(FONTE, 13, "bold"))
         # Só depois que a janela abriu (a resposta volta para a janela, que precisa estar rodando).
         self.after(2000, lambda: em_segundo_plano(self, lambda: atualizacao.versao_mais_nova(VERSAO),
                                                   self._versao_nova, lambda e, d: None))
+        self.etapas = Etapas(topo, ETAPAS)
+        self.etapas.pack(fill="x", padx=24)
+        linha = ctk.CTkFrame(topo, fg_color="transparent")
+        linha.pack(fill="x", padx=32, pady=(0, 12))
+        self.rotulo_etapa = ctk.CTkLabel(linha, text="", text_color=tema.TEXTO_2, font=(FONTE, 13))
+        self.rotulo_etapa.pack(side="right", padx=(12, 0))
+        self.barra_etapas = ctk.CTkProgressBar(linha, height=6)
+        self.barra_etapas.pack(side="left", fill="x", expand=True)
 
-        direita = ctk.CTkFrame(self, fg_color="transparent")
-        direita.pack(side="left", fill="both", expand=True)
-        self.faixa = ctk.CTkLabel(direita, text="", font=(FONTE, 13, "bold"), height=30)
-        self.faixa.pack(fill="x")
-        self._aplicar_modo()
-        self.conteudo = ctk.CTkFrame(direita, fg_color="transparent")
-        self.conteudo.pack(fill="both", expand=True, padx=24, pady=(14, 0))
-        rodape = ctk.CTkFrame(direita, fg_color="transparent")
-        rodape.pack(fill="x", padx=24, pady=14)
+        rodape = ctk.CTkFrame(self, fg_color="transparent")       # antes do conteúdo: em tela baixa não some
+        rodape.pack(side="bottom", fill="x", padx=32, pady=12)
+        self.conteudo = ctk.CTkFrame(self, fg_color="transparent")
+        self.conteudo.pack(fill="both", expand=True, padx=32, pady=(14, 0))
         self.botao_voltar = ctk.CTkButton(rodape, text="← Voltar", width=120, **tema.BOTAO_CONTORNO,
                                            command=self.voltar)
         self.botao_voltar.pack(side="left")
-        self.botao_avancar = ctk.CTkButton(rodape, text="Avançar →", width=220, height=44,
+        self.botao_avancar = ctk.CTkButton(rodape, text="Avançar →", width=260, height=44,
                                            font=(FONTE, 16, "bold"), command=self.avancar)
         self.botao_avancar.pack(side="right")
         self.status = ctk.CTkLabel(rodape, text="", anchor="w", text_color=COR_APAGADO)
         self.status.pack(side="left", fill="x", expand=True, padx=16)
+        self._aplicar_modo()
 
     def _versao_nova(self, resultado):
         if not resultado:
             return
         versao, link = resultado
-        self.botao_atualizar.configure(text=f"Versão {versao} disponível\nclique para baixar",
+        self.botao_atualizar.configure(text=f"Versão {versao} disponível · baixar",
                                        command=lambda: webbrowser.open(link))
-        self.botao_atualizar.pack(side="bottom", fill="x", padx=16)
+        self.botao_atualizar.pack(side="right", padx=(0, 4))
 
     def _aplicar_modo(self):
         """Título da janela e faixa do alto: amarela no teste, vermelha no oficial."""
         self.title(f"Certificados — modo {self.modo.rotulo} (versão {VERSAO})")
         if self.modo.nome == "teste":
-            self.faixa.configure(text="MODO TESTE  ·  nada vai para os docentes: todos os e-mails vão para o "
-                                      "e-mail de teste", fg_color=tema.FAIXA_TESTE,
-                                 text_color=tema.FAIXA_TESTE_TEXTO)
+            destino = self.email_teste or "o e-mail de teste (falta preencher)"
+            self.faixa.configure(text=f"MODO TESTE  ·  nada vai para os docentes: todos os e-mails vão para "
+                                      f"{destino}", fg_color=tema.FAIXA_TESTE, text_color=tema.FAIXA_TESTE_TEXTO)
         else:
             self.faixa.configure(text="MODO OFICIAL  ·  os e-mails vão para os docentes de verdade",
                                  fg_color=tema.FAIXA_OFICIAL, text_color=tema.FAIXA_OFICIAL_TEXTO)
+        self._atualizar_chip()
 
     @property
     def oficial(self):
         return self.modo.nome == "oficial"
 
+    def _trocar_modo(self, rotulo):
+        novo = "oficial" if rotulo == "Oficial" else "teste"
+        if novo == self.modo.nome:
+            return
+        if self.etapa != 0:                    # só se troca de modo na tela inicial
+            self.seletor_modo.set(self.modo.rotulo)
+            return
+        self.modo = gerador.MODOS[novo]
+        self._aplicar_modo()
+        self.ir_para(0)
+
+    # -- arquivos e configurações ----------------------------------------------
+
+    def _itens_verificacao(self):
+        """(rótulo, caminho, ok, obrigatório). Igual à VerificacaoPreRodagem do AHK."""
+        l = self.locais
+        para_enviar = os.path.join(l.declaracoes, "Para Enviar") if l.declaracoes else ""
+        return [
+            ("Pasta Declarações (OneDrive)", l.declaracoes or "OneDrive da empresa não encontrado",
+             bool(l.declaracoes) and os.path.isdir(l.declaracoes), True),
+            ("Pasta Para Enviar", para_enviar, bool(para_enviar) and os.path.isdir(para_enviar), True),
+            ("Modelo do certificado", self.modelo, os.path.isfile(self.modelo or ""), True),
+            ("Logo", l.logo, os.path.isfile(l.logo), True),
+            ("Pasta de assinaturas", l.assinaturas, os.path.isdir(l.assinaturas), True),
+            ("Planilha mestre", self.mestre or "—", os.path.isfile(self.mestre or ""), False),
+        ]
+
+    def _faltando(self):
+        faltam = [f"• {rot}: {cam}" for rot, cam, ok, obrig in self._itens_verificacao() if obrig and not ok]
+        if not self.oficial and not textos.email_valido(self.email_teste):
+            faltam.append("• E-mail de teste")
+        return faltam
+
+    def _atualizar_chip(self):
+        if self._faltando():
+            self.chip_arquivos.configure(text="✗  Falta configurar · abrir", fg_color=tema.ERRO_FUNDO,
+                                         hover_color=tema.SECUNDARIO_HOVER, text_color=tema.ERRO)
+        else:
+            self.chip_arquivos.configure(text="✓  Arquivos e pastas ok", fg_color=tema.OK_FUNDO,
+                                         hover_color="#1f4d40", text_color=tema.OK)
+
+    def abrir_configuracoes(self):
+        d = Dialogo(self, "Arquivos e configurações",
+                    "O programa acha tudo sozinho no OneDrive. Só troque se algum item estiver em vermelho.",
+                    [("Fechar", True)], largura=860)
+        var_email = ctk.StringVar(value=self.email_teste)
+        if not self.oficial:
+            linha = ctk.CTkFrame(d.corpo, fg_color="transparent")
+            linha.pack(fill="x", pady=3)
+            ctk.CTkLabel(linha, text="E-mail de teste", width=150, anchor="w").pack(side="left")
+            ctk.CTkEntry(linha, textvariable=var_email, placeholder_text="seu.nome@einstein.br").pack(
+                side="left", fill="x", expand=True)
+        quadro = ctk.CTkFrame(d.corpo)
+
+        def conferir():
+            self.modelo, mestre = var_modelo.get(), var_mestre.get()
+            for w in quadro.winfo_children():
+                w.destroy()
+            for i, (rotulo, caminho, ok, obrigatorio) in enumerate(self._itens_verificacao()):
+                cor = COR_OK if ok else (COR_ERRO if obrigatorio else COR_AVISO)
+                ctk.CTkLabel(quadro, text="✓" if ok else ("✗" if obrigatorio else "!"), text_color=cor, width=30,
+                             font=(FONTE, 16, "bold")).grid(row=i, column=0, padx=(10, 0), pady=3)
+                ctk.CTkLabel(quadro, text=rotulo, anchor="w", width=210).grid(row=i, column=1, sticky="w")
+                ctk.CTkLabel(quadro, text=caminho, anchor="w", text_color=COR_APAGADO, wraplength=520,
+                             justify="left").grid(row=i, column=2, sticky="w", padx=(0, 10))
+            if powerpoint_aberto():
+                ctk.CTkLabel(quadro, anchor="w", text_color=COR_AVISO, text="! O PowerPoint está aberto. Salve e "
+                             "feche as apresentações antes de gerar.").grid(row=99, column=0, columnspan=3,
+                                                                            sticky="w", padx=10, pady=3)
+
+        var_modelo = linha_de_arquivo(d.corpo, "Modelo (.pptx)", self.modelo, conferir, [("PowerPoint", "*.pptx")])
+        var_mestre = linha_de_arquivo(d.corpo, "Planilha mestre", self.mestre, conferir, [("Excel", "*.xlsx")])
+        ctk.CTkLabel(d.corpo, text="Arquivos e pastas", font=(FONTE, 16, "bold"), anchor="w").pack(fill="x",
+                                                                                                pady=(12, 4))
+        quadro.pack(fill="x")
+        conferir()
+        self.wait_window(d)
+        self.modelo = var_modelo.get()
+        mestre = var_mestre.get()
+        if not self.oficial:
+            email = var_email.get().strip()
+            if email != self.email_teste:
+                self.email_teste = email
+                self.config_usuario["email_teste"] = email
+                gravar_config(self.config_usuario)
+        self._aplicar_modo()
+        if mestre != self.mestre:
+            self.mestre = mestre
+            self.abas_mestre, self.aba, self.cursos, self.marcados, self.situacoes = [], "", [], set(), None
+            if self.etapa == 0:
+                self.ir_para(0)
+
     # -- estado e navegação ---------------------------------------------------
 
     def nova_rodada(self):
-        self.email_teste = self.config_usuario.get("email_teste", "")
-        self.mestre = self.locais.planilha_mestre
-        self.modelo = self.locais.modelo
         self.abas_mestre, self.aba = [], ""
-        self.data_emissao = datetime.now().strftime("%d/%m/%Y")
+        self.data_emissao = ""                   # começa vazia: tem de ser digitada a cada rodada
         self.cursos, self.marcados = [], set()   # marcados = linhas da mestre
         self.situacoes = None                    # historico.situacao: meses já enviados por curso
+        self.mes_painel = ""
         self.lote, self.cadastro = [], None
         self.abas_por_planilha, self.erros_planilha = {}, {}
         self.meses_marcados = set()
         self.problemas, self.mescladas, self.linhas_ok = [], 0, 0
         self.relatorio, self.log, self.modo_do_log, self.cancelar = None, None, "", False
+        self.inicio_rodada = None                # relógio do tempo economizado
         self.ir_para(0)
 
     @property
@@ -256,40 +363,41 @@ class App(ctk.CTk):
         return [i for i in self.lote if not i.removido]
 
     def ir_para(self, n):
-        self.etapa = n
+        self.etapa, self._ocupado = n, False
         for w in self.conteudo.winfo_children():
             w.destroy()
-        for i, r in enumerate(self.rotulos_etapas):
-            if i == n:
-                r.configure(fg_color=tema.ACENTO, text_color="#ffffff", font=(FONTE, 16, "bold"))
-            else:
-                r.configure(fg_color="transparent", text_color=tema.TEXTO if i < n else COR_APAGADO,
-                            font=(FONTE, 16))
-            r.configure(text=f"  {'✓' if i < n else i + 1}   {ETAPAS[i]}")
+        self.etapas.marcar(n)
+        self.barra_etapas.set((n + 0.5) / len(ETAPAS))
+        self.rotulo_etapa.configure(text=f"Etapa {n + 1} de {len(ETAPAS)}")
+        self.seletor_modo.configure(state="normal" if n == 0 else "disabled")
         self.status.configure(text="", text_color=COR_APAGADO)
         self.botao_voltar.configure(state="normal" if 0 < n < GERAR else "disabled", text="← Voltar",
                                     command=self.voltar)
         self.botao_avancar.configure(state="normal", text="Avançar →")
-        [self.montar_inicio, self.montar_cursos, self.montar_coordenadores, self.montar_planilhas,
-         self.montar_conferir, self.montar_gerar, self.montar_relatorio][n]()
+        [self.montar_inicio, self.montar_coordenadores, self.montar_planilhas, self.montar_conferir,
+         self.montar_gerar, self.montar_relatorio][n]()
 
     def voltar(self):
         if 0 < self.etapa < GERAR:
             self.ir_para(self.etapa - 1)
 
     def avancar(self):
-        [self.avancar_inicio, self.avancar_cursos, self.avancar_coordenadores, self.avancar_planilhas,
-         lambda: self.ir_para(GERAR), self.gerar, self.nova_rodada][self.etapa]()
+        [self.avancar_inicio, self.avancar_coordenadores, self.avancar_planilhas, lambda: self.ir_para(GERAR),
+         self.gerar, self.nova_rodada][self.etapa]()
 
     def ocupado(self, texto):
+        self._ocupado = True
         self.botao_avancar.configure(state="disabled")
         self.botao_voltar.configure(state="disabled")
         self.status.configure(text=texto, text_color=COR_APAGADO)
 
     def livre(self, texto=""):
+        self._ocupado = False
         self.botao_avancar.configure(state="normal")
         self.botao_voltar.configure(state="normal" if 0 < self.etapa < GERAR else "disabled")
         self.status.configure(text=texto)
+        if self.etapa == 0:
+            self._atualizar_continuar()
 
     def registrar(self, msg):
         if self.log:
@@ -314,162 +422,88 @@ class App(ctk.CTk):
         tema.quebrar_na_largura(ctk.CTkLabel(self.conteudo, text=texto, justify="left", anchor="w",
                      text_color=tema.TEXTO_2)).pack(fill="x", pady=(2, 12))
 
-    # -- 1. Início --------------------------------------------------------------
+    # -- 1. Início: painel, cursos da mestre e data de emissão -------------------
 
     def montar_inicio(self):
-        if self.oficial:
-            self.cabecalho("Antes de começar",
-                           "Modo oficial: os certificados vão para a Para Enviar e o Power Automate manda os e-mails "
-                           "para os docentes, como na v27 do AHK. Para experimentar sem enviar nada, escolha Teste.")
-        else:
-            self.cabecalho("Antes de começar",
-                           "Modo teste: os certificados são gerados normalmente, mas no manifesto o e-mail de TODOS os "
-                           "docentes é trocado pelo e-mail abaixo. Assim, o Power Automate manda tudo só para esse "
-                           "endereço.")
-        linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        linha.pack(fill="x", pady=(0, 10))
-        ctk.CTkLabel(linha, text="Modo", width=150, anchor="w", font=(FONTE, 15, "bold")).pack(side="left")
-        seletor = ctk.CTkSegmentedButton(linha, values=["Teste", "Oficial"], command=self._trocar_modo, width=240)
-        seletor.set(self.modo.rotulo)
-        seletor.pack(side="left")
-        self.var_email = ctk.StringVar(value=self.email_teste)
-        if not self.oficial:
-            linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-            linha.pack(fill="x", pady=(0, 10))
-            ctk.CTkLabel(linha, text="E-mail de teste", width=150, anchor="w",
-                         font=(FONTE, 15, "bold")).pack(side="left")
-            ctk.CTkEntry(linha, textvariable=self.var_email, width=360,
-                         placeholder_text="seu.nome@einstein.br").pack(side="left")
-        self.var_modelo = linha_de_arquivo(self.conteudo, "Modelo (.pptx)", self.modelo, self._conferir_arquivos,
-                                           [("PowerPoint", "*.pptx")])
-        ctk.CTkLabel(self.conteudo, text="Arquivos e pastas", font=(FONTE, 16, "bold"), anchor="w").pack(
-            fill="x", pady=(14, 4))
-        self.quadro_arquivos = ctk.CTkFrame(self.conteudo)
-        self.quadro_arquivos.pack(fill="x")
-        ctk.CTkButton(self.conteudo, text="Conferir de novo", width=150, **tema.BOTAO_CONTORNO,
-                      command=self._conferir_arquivos).pack(anchor="w", pady=8)
-        self._conferir_arquivos()
+        cartoes = ctk.CTkFrame(self.conteudo, fg_color="transparent")
+        cartoes.pack(fill="x")
+        for i in range(4):
+            cartoes.grid_columnconfigure(i, weight=1, uniform="cartao")
+        self.rosca_cursos = Rosca(cartoes, "Cursos feitos no mês", tema.OK)
+        self.rosca_cursos.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self.rosca_certificados = Rosca(cartoes, "Certificados feitos no mês", tema.CERTIFICADOS)
+        self.rosca_certificados.grid(row=0, column=1, sticky="nsew", padx=8)
 
-    def _trocar_modo(self, rotulo):
-        novo = "oficial" if rotulo == "Oficial" else "teste"
-        if novo == self.modo.nome:
-            return
-        self.email_teste, self.modelo = self.var_email.get().strip(), self.var_modelo.get()
-        self.modo = gerador.MODOS[novo]
-        self._aplicar_modo()
-        self.ir_para(0)
+        cartao_mes = ctk.CTkFrame(cartoes)
+        cartao_mes.grid(row=0, column=2, sticky="nsew", padx=8)
+        ctk.CTkLabel(cartao_mes, text="Mês dos certificados", text_color=tema.TEXTO_2, font=(FONTE, 13),
+                     anchor="w").pack(fill="x", padx=16, pady=(16, 2))
+        self.combo_mes = ctk.CTkComboBox(cartao_mes, values=[], command=self._trocar_mes, state="readonly")
+        self.combo_mes.pack(fill="x", padx=16)
+        self.rotulo_mestre = ctk.CTkLabel(cartao_mes, text="", text_color=COR_APAGADO, font=(FONTE, 12),
+                                          anchor="w", justify="left", wraplength=260)
+        self.rotulo_mestre.pack(fill="x", padx=16, pady=(8, 12))
 
-    def _itens_verificacao(self):
-        """(rótulo, caminho, ok, obrigatório). Igual à VerificacaoPreRodagem do AHK."""
-        l = self.locais
-        para_enviar = os.path.join(l.declaracoes, "Para Enviar") if l.declaracoes else ""
-        modelo = self.var_modelo.get()
-        return [
-            ("Pasta Declarações (OneDrive)", l.declaracoes or "OneDrive da empresa não encontrado",
-             bool(l.declaracoes) and os.path.isdir(l.declaracoes), True),
-            ("Pasta Para Enviar", para_enviar, bool(para_enviar) and os.path.isdir(para_enviar), True),
-            ("Modelo do certificado", modelo, os.path.isfile(modelo), True),
-            ("Logo", l.logo, os.path.isfile(l.logo), True),
-            ("Pasta de assinaturas", l.assinaturas, os.path.isdir(l.assinaturas), True),
-            ("Planilha mestre", self.mestre or "—", os.path.isfile(self.mestre or ""), False),
-        ]
+        self.cartao_extra = ctk.CTkFrame(cartoes)
+        self.cartao_extra.grid(row=0, column=3, sticky="nsew", padx=(8, 0))
+        self.barras_tempo = BarrasTempo(self.cartao_extra)
+        self.barras_tempo.mostrar(economia.resumo())
+        self.quadro_data = ctk.CTkFrame(self.cartao_extra, fg_color="transparent")
+        ctk.CTkLabel(self.quadro_data, text="Data de emissão", font=(FONTE, 15, "bold"), anchor="w").pack(fill="x")
+        # Sem textvariable: com ela o CustomTkinter não mostra o texto de exemplo.
+        self.campo_data = ctk.CTkEntry(self.quadro_data, placeholder_text="dd/mm/aaaa", height=40, font=(FONTE, 17))
+        if self.data_emissao:
+            self.campo_data.insert(0, self.data_emissao)
+        self.campo_data.bind("<KeyRelease>", lambda e: self._data_mudou())
+        self.campo_data.pack(fill="x", pady=(6, 4))
+        self.rotulo_data = ctk.CTkLabel(self.quadro_data, text="", font=(FONTE, 12), anchor="w")
+        self.rotulo_data.pack(fill="x")
 
-    def _conferir_arquivos(self):
-        for w in self.quadro_arquivos.winfo_children():
-            w.destroy()
-        for i, (rotulo, caminho, ok, obrigatorio) in enumerate(self._itens_verificacao()):
-            cor = COR_OK if ok else (COR_ERRO if obrigatorio else COR_AVISO)
-            simbolo = "✓" if ok else ("✗" if obrigatorio else "!")
-            ctk.CTkLabel(self.quadro_arquivos, text=simbolo, text_color=cor, width=30,
-                         font=(FONTE, 16, "bold")).grid(row=i, column=0, padx=(10, 0), pady=3)
-            ctk.CTkLabel(self.quadro_arquivos, text=rotulo, anchor="w", width=210).grid(row=i, column=1, sticky="w")
-            ctk.CTkLabel(self.quadro_arquivos, text=caminho, anchor="w", text_color=COR_APAGADO).grid(
-                row=i, column=2, sticky="w", padx=(0, 10))
-        n = len(self._itens_verificacao())
-        if powerpoint_aberto():
-            ctk.CTkLabel(self.quadro_arquivos, text="!", text_color=COR_AVISO, width=30,
-                         font=(FONTE, 16, "bold")).grid(row=n, column=0, padx=(10, 0), pady=3)
-            ctk.CTkLabel(self.quadro_arquivos, anchor="w", text_color=COR_AVISO,
-                         text="O PowerPoint está aberto. Salve e feche as apresentações antes de gerar.").grid(
-                row=n, column=1, columnspan=2, sticky="w")
-
-    def avancar_inicio(self):
-        email = self.var_email.get().strip()
-        if not self.oficial and not textos.email_valido(email):
-            avisar(self, "E-mail inválido", "Digite um e-mail de teste válido, por exemplo seu.nome@einstein.br.")
-            return
-        faltando = [f"• {rot}: {cam}" for rot, cam, ok, obrig in self._itens_verificacao() if obrig and not ok]
-        if faltando:
-            avisar(self, "Falta algum arquivo", "Sem estes itens não dá para gerar:\n\n" + "\n".join(faltando))
-            return
-        if self.oficial:
-            pergunta = ("Modo oficial", "Nesta rodada os e-mails vão para os DOCENTES de verdade.\n\n"
-                                        "Antes de gerar, o programa ainda mostra o resumo e pede confirmação.",
-                        [("Voltar", None), ("Entendi, continuar", True)])
-        else:
-            pergunta = ("Confirmar e-mail de teste",
-                        f"Todos os e-mails do manifesto irão para:\n\n{email}\n\nEstá correto?",
-                        [("Corrigir", None), ("Sim, continuar", True)])
-        if perguntar(self, *pergunta) is not True:
-            return
-        self.email_teste, self.modelo = email, self.var_modelo.get()
-        if not self.oficial:
-            self.config_usuario["email_teste"] = email
-            gravar_config(self.config_usuario)
-        if self.log is None or self.modo_do_log != self.modo.nome:
-            self.log, self.modo_do_log = gerador.Log(self.modo.nome), self.modo.nome
-        self.registrar(f"MODO {self.modo.rotulo.upper()}"
-                       + ("" if self.oficial else f" — e-mails do manifesto: {email}") + f" | Modelo: {self.modelo}")
-        self.ir_para(1)
-
-    # -- 2. Cursos --------------------------------------------------------------
-
-    def montar_cursos(self):
-        self.cabecalho("Cursos", "Escolha o semestre e marque os cursos desta rodada. Ao lado de cada curso aparecem "
-                                 "os meses já enviados.")
-        self.var_mestre = linha_de_arquivo(self.conteudo, "Planilha mestre", self.mestre, self._trocar_mestre,
-                                           [("Excel", "*.xlsx")])
-        linha = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        linha.pack(fill="x", pady=3)
-        ctk.CTkLabel(linha, text="Semestre (aba)", width=150, anchor="w").pack(side="left")
-        self.combo_aba = ctk.CTkComboBox(linha, values=self.abas_mestre, width=160, command=self._trocar_aba)
-        self.combo_aba.set(self.aba)
-        self.combo_aba.pack(side="left")
-        ctk.CTkLabel(linha, text="Data de emissão", anchor="w").pack(side="left", padx=(30, 8))
-        self.var_data = ctk.StringVar(value=self.data_emissao)
-        ctk.CTkEntry(linha, textvariable=self.var_data, width=130).pack(side="left")
-
-        cab = ctk.CTkFrame(self.conteudo, fg_color="transparent")
-        cab.pack(fill="x", pady=(14, 6))
-        self.rotulo_marcados = ctk.CTkLabel(cab, text="", font=(FONTE, 16, "bold"), anchor="w")
-        self.rotulo_marcados.pack(side="left")
+        quadro = ctk.CTkFrame(self.conteudo)
+        quadro.pack(fill="both", expand=True, pady=(16, 0))
+        barra = ctk.CTkFrame(quadro, fg_color="transparent")
+        barra.pack(fill="x", padx=16, pady=(10, 8))
+        ctk.CTkLabel(barra, text="Cursos da planilha mestre", font=(FONTE, 16, "bold")).pack(side="left")
+        self.rotulo_marcados = ctk.CTkLabel(barra, text="", text_color=tema.TEXTO_2)
+        self.rotulo_marcados.pack(side="left", padx=16)
+        self.campo_filtro = ctk.CTkEntry(barra, placeholder_text="procurar curso…", width=240)
+        self.campo_filtro.bind("<KeyRelease>", lambda e: self._desenhar_cursos())
+        self.campo_filtro.pack(side="right")
         self.var_esconder = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(cab, text="Esconder os já enviados em", variable=self.var_esconder,
-                        command=self._desenhar_cursos).pack(side="left", padx=(24, 6))
-        self.combo_mes_enviado = ctk.CTkComboBox(cab, values=[], width=110, command=lambda _: self._desenhar_cursos())
-        self.combo_mes_enviado.pack(side="left")
-        self.var_filtro = ctk.StringVar()
-        self.var_filtro.trace_add("write", lambda *_: self._desenhar_cursos())
-        ctk.CTkEntry(cab, textvariable=self.var_filtro, placeholder_text="procurar curso…", width=230).pack(
-            side="right")
-        self.lista_cursos = ctk.CTkScrollableFrame(self.conteudo)
-        self.lista_cursos.pack(fill="both", expand=True, pady=(0, 4))
-        ctk.CTkLabel(self.conteudo, text="Verde = arquivado pelo fluxo  ·  Amarelo = gerado, ainda na Para Enviar",
-                     text_color=tema.APAGADO, font=(FONTE, 13), anchor="w").pack(fill="x")
+        self.caixa_esconder = ctk.CTkCheckBox(barra, text="Esconder os já feitos no mês", variable=self.var_esconder,
+                                              command=self._desenhar_cursos)
+        self.caixa_esconder.pack(side="right", padx=16)
+        self.tabela_cursos = PlanilhaCursos(quadro, self._marcar)
+        self.tabela_cursos.pack(fill="both", expand=True)
+        base = ctk.CTkFrame(quadro, fg_color=tema.LATERAL, corner_radius=0, height=38)
+        base.pack(fill="x")
+        self.quadro_abas = ctk.CTkFrame(base, fg_color="transparent")
+        self.quadro_abas.pack(side="left", fill="y", padx=(8, 0))
+        ctk.CTkLabel(base, text="Verde = enviado  ·  Amarelo = na Para Enviar  ·  Vermelho = ainda não feito  ·  "
+                                "Cinza = mês futuro ou sem aulas", text_color=COR_APAGADO,
+                     font=(FONTE, 12)).pack(side="right", padx=14)
+
+        self._atualizar_chip()
         if self.abas_mestre:
-            self._preencher_meses_enviados()
+            self._desenhar_abas()
+            self._preencher_meses()
             self._desenhar_cursos()
+            self._contar_previstos()
         else:
             self._carregar_abas()
+        self._atualizar_continuar()
 
-    def _trocar_mestre(self):
-        self.mestre = self.var_mestre.get()
-        self.abas_mestre, self.aba, self.cursos, self.marcados = [], "", [], set()
-        self._carregar_abas()
+    def _na_inicio(self):
+        return self.etapa == 0 and self.tabela_cursos.winfo_exists()
+
+    # mestre e semestre
 
     def _carregar_abas(self):
+        self.rotulo_mestre.configure(text=f"Planilha mestre: {os.path.basename(self.mestre or '') or '—'}")
+        self.tabela_cursos.mostrar([], [], "", "Lendo a planilha mestre…")
         if not os.path.isfile(self.mestre or ""):
-            self.status.configure(text="Escolha a planilha mestre.")
+            self.tabela_cursos.mostrar([], [], "", "Planilha mestre não encontrada. Clique no aviso vermelho lá "
+                                                   "em cima para escolher.")
             return
         self.ocupado("Lendo a planilha mestre…")
         em_segundo_plano(self, lambda: planilhas.listar_abas(self.mestre), self._abas_carregadas)
@@ -477,25 +511,46 @@ class App(ctk.CTk):
     def _abas_carregadas(self, abas):
         self.livre()
         self.abas_mestre = abas
-        self.combo_aba.configure(values=abas)
-        semestres = [a for a in abas if any(ch.isdigit() for ch in a)]
-        if semestres:
+        semestres = self._abas_de_semestre()
+        if semestres and self._na_inicio():
             self._trocar_aba(semestres[-1])
 
+    def _abas_de_semestre(self):
+        return [a for a in self.abas_mestre if any(ch.isdigit() for ch in a)] or list(self.abas_mestre)
+
+    def _desenhar_abas(self):
+        for w in self.quadro_abas.winfo_children():
+            w.destroy()
+        ctk.CTkLabel(self.quadro_abas, text="Abas da mestre:", text_color=COR_APAGADO, font=(FONTE, 12)).pack(
+            side="left", padx=(6, 8))
+        for aba in self._abas_de_semestre():
+            atual = aba == self.aba
+            ctk.CTkButton(self.quadro_abas, text=aba, width=70, height=30, corner_radius=0,
+                          font=(FONTE, 13, "bold" if atual else "normal"),
+                          fg_color=tema.ACENTO if atual else "transparent", hover_color=tema.SECUNDARIO_HOVER,
+                          text_color="#ffffff" if atual else tema.TEXTO_2,
+                          command=lambda a=aba: self._trocar_aba(a)).pack(side="left", padx=1, pady=4)
+
     def _trocar_aba(self, aba):
-        self.combo_aba.set(aba)
         if aba == self.aba and self.cursos:
             return
-        self.aba, self.cursos, self.marcados, self.situacoes = aba, [], set(), None
+        self.aba, self.cursos, self.marcados, self.situacoes, self.mes_painel = aba, [], set(), None, ""
+        self._desenhar_abas()
+        self._preencher_meses()
+        self.tabela_cursos.mostrar([], self.meses_semestre, self.mes_painel, f"Lendo os cursos da aba {aba}…")
         self.ocupado(f"Lendo os cursos da aba {aba}…")
-        em_segundo_plano(self, lambda: planilhas.ler_cursos_da_mestre(self.mestre, aba), self._cursos_carregados)
+        em_segundo_plano(self, lambda: planilhas.ler_cursos_da_mestre(self.mestre, aba),
+                         lambda cursos: self._cursos_carregados(aba, cursos))
 
-    def _cursos_carregados(self, cursos):
+    def _cursos_carregados(self, aba, cursos):
         self.livre()
+        if aba != self.aba:
+            return
         self.cursos = cursos or []
         if cursos is None:
-            self.status.configure(text=f"A aba {self.aba} não foi encontrada.", text_color=COR_ERRO)
-        self._desenhar_cursos()
+            self.status.configure(text=f"A aba {aba} não foi encontrada.", text_color=COR_ERRO)
+        if self._na_inicio():
+            self._desenhar_cursos()
         if self.cursos:
             self.status.configure(text="Lendo o histórico de envios…")
             cursos, locais = self.cursos, self.locais
@@ -508,80 +563,204 @@ class App(ctk.CTk):
         if cursos is not self.cursos:          # trocou de semestre enquanto lia
             return
         self.situacoes = situacoes
-        self.status.configure(text="")
-        if self.etapa == 1:
-            self._preencher_meses_enviados()
+        if self._na_inicio():
+            self.status.configure(text="")
             self._desenhar_cursos()
+            self._contar_previstos()
 
-    def _preencher_meses_enviados(self):
-        meses = historico.meses_conhecidos(self.situacoes or {})
-        rotulos = [historico.rotulo_mes(m) for m in meses]
-        self.combo_mes_enviado.configure(values=rotulos)
-        if rotulos and self.combo_mes_enviado.get() not in rotulos:
-            self.combo_mes_enviado.set(rotulos[0])
+    # mês do painel
 
-    def _escondido(self, curso):
-        if not (self.var_esconder.get() and self.situacoes):
-            return False
-        rotulo = self.combo_mes_enviado.get()
-        return any(m.rotulo == rotulo for m in self.situacoes.get(curso.linha, []))
+    @property
+    def meses_semestre(self):
+        return painel.meses_do_semestre(self.aba)
+
+    def _preencher_meses(self):
+        meses = self.meses_semestre
+        if self.mes_painel not in meses:
+            self.mes_painel = painel.mes_padrao(meses)
+        self.combo_mes.configure(values=[painel.longo(m) for m in meses])
+        self.combo_mes.set(painel.longo(self.mes_painel))
+        self.caixa_esconder.configure(text=f"Esconder os já feitos em {painel.curto(self.mes_painel)}")
+        self.rotulo_mestre.configure(text=f"Semestre {self.aba or '—'} · planilha mestre: "
+                                          f"{os.path.basename(self.mestre or '') or '—'}")
+
+    def _trocar_mes(self, rotulo):
+        for m in self.meses_semestre:
+            if painel.longo(m) == rotulo:
+                self.mes_painel = m
+        self._preencher_meses()
+        self._desenhar_cursos()
+        self._contar_previstos()
+
+    def _contar_previstos(self):
+        """Certificados previstos no mês, lidos das planilhas dos cursos (em segundo plano)."""
+        chave = (self.aba, self.mes_painel)
+        if not self.cursos or self.situacoes is None or chave in self.previstos or self._contando == chave:
+            return
+        self._contando = chave
+        cursos, locais = self.cursos, self.locais
+
+        def progresso(feitos, total):
+            self.after(0, lambda: self._na_inicio() and (self.aba, self.mes_painel) == chave and
+                       self.rosca_certificados.carregando(f"lendo as planilhas dos cursos… {feitos} de {total}"))
+
+        def pronto(resultado):
+            self._contando = None
+            self.previstos[chave] = resultado
+            if self._na_inicio() and (self.aba, self.mes_painel) == chave:
+                self._desenhar_cursos()
+
+        def falhou(erro, detalhe):
+            self._contando = None
+            self.registrar(f"Contagem de certificados não feita: {erro}")
+
+        em_segundo_plano(self, lambda: painel.contar_previstos(locais, cursos, chave[0], chave[1], progresso),
+                         pronto, falhou)
+
+    # tabela e números
+
+    def _mes_do_curso(self, curso, mes):
+        for m in (self.situacoes or {}).get(curso.linha, []):
+            if m.pasta_mes == mes:
+                return m
+        return None
 
     def _desenhar_cursos(self):
-        for w in self.lista_cursos.winfo_children():
-            w.destroy()
-        filtro = textos.normalizar(self.var_filtro.get())
-        escondidos = 0
+        if not self._na_inicio():
+            return
+        mes = self.mes_painel
+        previstos = self.previstos.get((self.aba, mes))
+        filtro = textos.normalizar(self.campo_filtro.get())
+        linhas, escondidos = [], 0
+        feitos = pendentes = sem_aulas = cert_feitos = cert_previstos = 0
         for c in self.cursos:
+            atual = self._mes_do_curso(c, mes)
+            previsto = previstos.get(c.linha) if previstos else None
+            if atual:
+                feitos += 1
+                pendentes += atual.pendente
+            elif previstos and previsto == 0:
+                sem_aulas += 1
+            if previstos:
+                pdfs = atual.pdfs if atual else 0
+                cert_feitos += pdfs
+                cert_previstos += max(previsto or 0, pdfs)
             if filtro and filtro not in textos.normalizar(f"{c.posgrad} {c.unidade} {c.coordenacao}"):
                 continue
-            if self._escondido(c):
+            if self.var_esconder.get() and atual:
                 escondidos += 1
                 continue
-            linha = ctk.CTkFrame(self.lista_cursos, fg_color="transparent", height=46)
-            linha.pack(fill="x", padx=6)
-            var = ctk.BooleanVar(value=c.linha in self.marcados)
-            ctk.CTkCheckBox(linha, text=c.posgrad, variable=var, font=(FONTE, 15),
-                            command=lambda c=c, v=var: self._marcar(c, v.get())).pack(side="left", pady=8)
-            meses = ctk.CTkFrame(linha, fg_color="transparent")
-            meses.pack(side="right", padx=(8, 4))
-            if self.situacoes is None:
-                ctk.CTkLabel(meses, text="…", text_color=tema.APAGADO).pack(side="left")
-            elif not self.situacoes.get(c.linha):
-                ctk.CTkLabel(meses, text="nenhum envio registrado", text_color=tema.APAGADO,
-                             font=(FONTE, 13)).pack(side="left")
+            meses = []
+            for m in self.meses_semestre:
+                feito = self._mes_do_curso(c, m)
+                if feito:
+                    meses.append("pendente" if feito.pendente else "ok")
+                elif m == mes and previstos and previsto == 0:
+                    meses.append("futuro")
+                else:
+                    meses.append("falta" if painel.ja_passou(m) and self.situacoes is not None else "futuro")
+            if self.situacoes is None or (previstos is None and not atual):
+                cert, cor = ("…" if self.situacoes is None or self._contando else ""), tema.APAGADO
+            elif previstos is not None and previsto is None:
+                cert, cor = (f"{atual.pdfs} feitos" if atual else "sem planilha"), tema.APAGADO
+            elif previstos is not None and previsto == 0 and not atual:
+                cert, cor = "sem aulas", tema.APAGADO
             else:
-                for m in self.situacoes[c.linha][-3:]:
-                    if m.pendente:
-                        tema.chip(meses, f" {m.rotulo} · aguardando envio ", tema.AVISO, tema.AVISO_FUNDO).pack(
-                            side="left", padx=3)
-                    else:
-                        tema.chip(meses, f" {m.rotulo} ✓ {m.data} ", tema.OK, tema.OK_FUNDO).pack(side="left", padx=3)
-            unidade = c.sigla_unidade or c.unidade or "—"
-            tema.chip(linha, f" {unidade} ", tema.UNIDADE, tema.UNIDADE_FUNDO).pack(side="right", padx=8)
-            ctk.CTkFrame(self.lista_cursos, fg_color=tema.LINHA, height=1, corner_radius=0).pack(fill="x", padx=6)
-        self._contar_marcados(escondidos)
+                pdfs = atual.pdfs if atual else 0
+                total = max(previsto or 0, pdfs)
+                cert = f"{pdfs} de {total}" if previstos is not None else f"{pdfs} feitos"
+                cor = tema.OK if atual and not atual.pendente else (tema.AVISO if atual else tema.TEXTO_2)
+            linhas.append({"linha": c.linha, "marcado": c.linha in self.marcados, "pos": c.posgrad,
+                           "coord": c.coordenacao, "uni": c.sigla_unidade or c.unidade or "—", "turma": c.turma,
+                           "meses": meses, "cert": cert, "cert_cor": cor})
+        vazio = "Nenhum curso com esse nome" if filtro else ("Todos os cursos já foram feitos neste mês"
+                                                             if escondidos else "Nenhum curso nesta aba")
+        if not self.cursos:
+            vazio = "Lendo os cursos…" if self.aba else "Escolha a planilha mestre"
+        self.tabela_cursos.mostrar(linhas, self.meses_semestre, mes, vazio)
 
-    def _marcar(self, curso, marcado):
-        (self.marcados.add if marcado else self.marcados.discard)(curso.linha)
-        self._contar_marcados()
+        extra = f"  ·  {escondidos} escondido(s)" if escondidos else ""
+        self.rotulo_marcados.configure(text=f"{len(self.cursos)} cursos  ·  {len(self.marcados)} marcado(s){extra}")
+        nome_mes = painel.longo(mes).split("/")[0].lower()
+        if self.situacoes is None:
+            self.rosca_cursos.carregando("lendo o histórico de envios…")
+            self.rosca_certificados.carregando("lendo o histórico de envios…")
+        else:
+            total = len(self.cursos) - sem_aulas
+            partes = [f"{pendentes} aguardando o fluxo" if pendentes else "", f"{sem_aulas} sem aulas em {nome_mes}"
+                      if sem_aulas else ""]
+            self.rosca_cursos.mostrar(feitos, total, "\n".join(p for p in partes if p) or
+                                      f"{max(total - feitos, 0)} faltando")
+            if previstos is None:
+                self.rosca_certificados.carregando("lendo as planilhas dos cursos…")
+            else:
+                self.rosca_certificados.mostrar(cert_feitos, cert_previstos,
+                                                f"{max(cert_previstos - cert_feitos, 0)} faltando")
+        self._atualizar_continuar()
 
-    def _contar_marcados(self, escondidos=None):
-        if escondidos is not None:
-            self._escondidos = escondidos
-        extra = f"  ·  {self._escondidos} escondido(s)" if getattr(self, "_escondidos", 0) else ""
-        self.rotulo_marcados.configure(text=f"{len(self.cursos)} cursos na aba {self.aba or '—'}  ·  "
-                                            f"{len(self.marcados)} marcado(s){extra}")
+    def _marcar(self, linha):
+        (self.marcados.discard if linha in self.marcados else self.marcados.add)(linha)
+        self._desenhar_cursos()
 
-    def avancar_cursos(self):
-        data = self.var_data.get().strip()
-        if not horas.data_valida(data):
-            avisar(self, "Data de emissão", "Digite a data de emissão no formato dd/mm/aaaa.")
+    # data de emissão e botão continuar
+
+    def _data_mudou(self):
+        self.data_emissao = self.campo_data.get().strip()
+        self._atualizar_continuar()
+
+    def _atualizar_continuar(self):
+        if not (self.etapa == 0 and hasattr(self, "quadro_data") and self.quadro_data.winfo_exists()):
             return
+        n = len(self.marcados)
+        if n:
+            if not self.quadro_data.winfo_ismapped():
+                self.barras_tempo.pack_forget()
+                self.quadro_data.pack(fill="both", expand=True, padx=16, pady=14)
+                self.after(50, self.campo_data.focus_set)
+        elif not self.barras_tempo.winfo_ismapped():
+            self.quadro_data.pack_forget()
+            self.barras_tempo.pack(fill="both", expand=True, padx=12, pady=10)
+        data_ok = horas.data_valida(self.data_emissao)
+        if not self.data_emissao:
+            self.rotulo_data.configure(text="Obrigatória para continuar", text_color=COR_AVISO)
+        elif not data_ok:
+            self.rotulo_data.configure(text="Use o formato dd/mm/aaaa", text_color=COR_ERRO)
+        else:
+            self.rotulo_data.configure(text="✓ Data ok", text_color=COR_OK)
+        if not n:
+            texto = "Marque os cursos desta rodada"
+        else:
+            texto = f"Continuar com {n} curso{'s' if n > 1 else ''} →"
+        pronto = n > 0 and data_ok and not getattr(self, "_ocupado", False)
+        self.botao_avancar.configure(text=texto, state="normal" if pronto else "disabled")
+
+    def avancar_inicio(self):
         escolhidos = [c for c in self.cursos if c.linha in self.marcados]
-        if not escolhidos:
-            avisar(self, "Nenhum curso", "Marque pelo menos um curso.")
+        if not escolhidos or not horas.data_valida(self.data_emissao):
             return
-        self.data_emissao = data
+        faltando = self._faltando()
+        if faltando:
+            avisar(self, "Falta configurar", "Sem estes itens não dá para gerar:\n\n" + "\n".join(faltando) +
+                   "\n\nClique no aviso vermelho lá em cima para corrigir.")
+            return
+        if self.oficial:
+            pergunta = ("Modo oficial", "Nesta rodada os e-mails vão para os DOCENTES de verdade.\n\n"
+                                        "Antes de gerar, o programa ainda mostra o resumo e pede confirmação.",
+                        [("Voltar", None), ("Entendi, continuar", True)])
+        else:
+            pergunta = ("Confirmar e-mail de teste",
+                        f"Todos os e-mails do manifesto irão para:\n\n{self.email_teste}\n\nEstá correto?",
+                        [("Corrigir", None), ("Sim, continuar", True)])
+        if perguntar(self, *pergunta) is not True:
+            return
+        data = self.data_emissao
+        if self.inicio_rodada is None:
+            self.inicio_rodada = time.monotonic()
+        if self.log is None or self.modo_do_log != self.modo.nome:
+            self.log, self.modo_do_log = gerador.Log(self.modo.nome), self.modo.nome
+        self.registrar(f"MODO {self.modo.rotulo.upper()}"
+                       + ("" if self.oficial else f" — e-mails do manifesto: {self.email_teste}")
+                       + f" | Modelo: {self.modelo}")
         self.registrar(f"Planilha mestre: {self.mestre} | Semestre: {self.aba} | Data de emissão: {data} | "
                        f"Cursos: {len(escolhidos)}")
         anteriores = {i.curso.linha: i for i in self.lote}
@@ -606,7 +785,7 @@ class App(ctk.CTk):
 
     def _lote_montado(self, resultado):
         self.cadastro, self.lote = resultado
-        self.ir_para(2)
+        self.ir_para(1)
 
     # -- 3. Coordenadores -------------------------------------------------------
 
@@ -760,7 +939,7 @@ class App(ctk.CTk):
             self.registrar(f"Coordenador de {item.curso.posgrad}: {c.assina_como} | Assinatura ({c.origem}): "
                            f"{c.assinatura}")
         self.ocupado("Lendo os meses das planilhas…")
-        em_segundo_plano(self, self._listar_abas_das_planilhas, lambda _: self.ir_para(3))
+        em_segundo_plano(self, self._listar_abas_das_planilhas, lambda _: self.ir_para(2))
 
     def _listar_abas_das_planilhas(self):
         for item in self.ativos:
@@ -902,7 +1081,7 @@ class App(ctk.CTk):
             return
         self.registrar(f"Validação: {self.linhas_ok} linhas prontas | {self.mescladas} células mescladas | "
                        f"{len(self.problemas)} linhas com problema")
-        self.ir_para(4)
+        self.ir_para(3)
 
     # -- 5. Conferir dados ------------------------------------------------------
 
@@ -1064,7 +1243,7 @@ class App(ctk.CTk):
         self.caixa_log.pack(fill="both", expand=True, pady=(4, 0))
         self.botao_avancar.configure(text="Gerar e enviar aos docentes" if self.oficial
                                      else "Gerar certificados de teste")
-        self.botao_voltar.configure(state="normal", command=lambda: self.ir_para(4))
+        self.botao_voltar.configure(state="normal", command=lambda: self.ir_para(3))
 
     def _escrever_log(self, msg):
         self.after(0, lambda: (self.caixa_log.insert("end", f"{datetime.now():%H:%M:%S}  {msg}\n"),
@@ -1125,7 +1304,7 @@ class App(ctk.CTk):
     def _falhou_geracao(self, erro, detalhe):
         self.log.ecoar = None
         self.mostrar_erro(erro, detalhe)
-        self.botao_voltar.configure(state="normal", text="← Voltar", command=lambda: self.ir_para(4))
+        self.botao_voltar.configure(state="normal", text="← Voltar", command=lambda: self.ir_para(3))
 
     def _gerado(self, relatorio):
         self.log.ecoar = None
@@ -1133,6 +1312,11 @@ class App(ctk.CTk):
         if self.oficial:
             historico.registrar(self.locais, relatorio, log=self.registrar)
             self.situacoes = None                 # relê na próxima rodada
+            if self.inicio_rodada is not None and relatorio.total_gerados:
+                segundos = time.monotonic() - self.inicio_rodada
+                economia.registrar(relatorio.total_gerados, segundos)
+                self.registrar(f"Tempo da rodada: {economia.duracao(segundos)} para {relatorio.total_gerados} "
+                               f"certificado(s)")
         self.ir_para(RELATORIO)
 
     # -- 7. Relatório -----------------------------------------------------------

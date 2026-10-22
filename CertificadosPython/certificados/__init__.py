@@ -1,3 +1,3 @@
 """Motor de geração de certificados (versão Python do GerarCertificados do AHK)."""
 
-VERSAO = "0.2.0"
+VERSAO = "0.3.0"

@@ -115,8 +115,12 @@ def _listar(pasta):
         return []
 
 
+def _pdfs(pasta):
+    return sum(1 for n in _listar(pasta) if n.lower().endswith(".pdf"))
+
+
 def arquivados(locais):
-    """{chave_curso: {pastaMes: datetime}} das pastas que o fluxo arquivou."""
+    """{chave_curso: {pastaMes: (datetime, nº de PDFs)}} das pastas que o fluxo arquivou."""
     achados = {}
     raiz = locais.declaracoes
     for semestre in _listar(raiz):
@@ -128,13 +132,14 @@ def arquivados(locais):
                     pasta = os.path.join(raiz, semestre, sigla, pos, mes)
                     if not re.match(r"^\d{2}\.\d{2}$", mes):
                         continue
-                    if not any(n.lower().endswith(".pdf") for n in _listar(pasta)):
+                    n = _pdfs(pasta)
+                    if not n:
                         continue
                     try:
                         quando = datetime.fromtimestamp(os.path.getmtime(pasta))
                     except OSError:
                         quando = None
-                    achados.setdefault((textos.normalizar(sigla), textos.normalizar(pos)), {})[mes] = quando
+                    achados.setdefault((textos.normalizar(sigla), textos.normalizar(pos)), {})[mes] = (quando, n)
     return achados
 
 
@@ -144,6 +149,7 @@ class MesProcessado:
     rotulo: str
     data: str          # "dd/mm" ou ""
     pendente: bool     # gerado, mas ainda na Para Enviar
+    pdfs: int = 0      # certificados do mês (na pasta arquivada ou na Para Enviar)
 
 
 def situacao(locais, cursos):
@@ -159,8 +165,8 @@ def situacao(locais, cursos):
     for c in cursos:
         chave = chave_curso(c.sigla_unidade or c.unidade, c.posgrad)
         meses = {}
-        for mes, quando in arquivo.get(chave, {}).items():
-            meses[mes] = MesProcessado(mes, rotulo_mes(mes), quando.strftime("%d/%m") if quando else "", False)
+        for mes, (quando, n) in arquivo.get(chave, {}).items():
+            meses[mes] = MesProcessado(mes, rotulo_mes(mes), quando.strftime("%d/%m") if quando else "", False, n)
         envio = CursoNoLote(c).nome_com_unidade
         for h in por_curso.get(chave, []):
             mes = h.get("pastaMes", "")
@@ -171,9 +177,11 @@ def situacao(locais, cursos):
             except (KeyError, ValueError):
                 data = ""
             pasta = os.path.join(para_enviar, h.get("pastaEnvio") or envio, mes)
-            pendente = any(n.lower().endswith(".pdf") for n in _listar(pasta))
+            na_para_enviar = _pdfs(pasta)
+            pendente = na_para_enviar > 0
             if mes not in meses or pendente:
-                meses[mes] = MesProcessado(mes, rotulo_mes(mes), data, pendente)
+                n = na_para_enviar or int(h.get("pdfsNoCurso") or 0)
+                meses[mes] = MesProcessado(mes, rotulo_mes(mes), data, pendente, n)
             elif data:
                 meses[mes].data = data           # a data do envio vale mais que a da pasta
         saida[c.linha] = sorted(meses.values(), key=lambda m: _ordem(m.pasta_mes))

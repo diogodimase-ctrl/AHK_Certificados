@@ -449,6 +449,24 @@ def ler_dados_da_planilha(caminho, abas):
     return dados
 
 
+def contar_certificados_do_mes(caminho, pasta_mes):
+    """Quantos certificados a planilha do curso prevê no mês ("10.26"): as
+    mesmas linhas que ler_dados_da_planilha leria. 0 se o curso não tem a aba
+    desse mês."""
+    for ws in _abrir(caminho).worksheets:
+        if textos.mes_para_pasta(ws.title) != pasta_mes:
+            continue
+        aba = Aba(ws)
+        col_nome, col_curso, col_email = detectar_colunas(aba)
+        total = 0
+        for linha in range(5, aba.ultima_linha(1) + 1):
+            reg = ler_registro(aba, linha, col_nome, col_curso, col_email)
+            if not reg.rodape:
+                total += len(dividir_por_docente(reg))
+        return total
+    return 0
+
+
 def aba_na_lista(lista, nome):
     """AbaNaLista."""
     return any(x.strip().casefold() == str(nome).casefold() for x in lista)

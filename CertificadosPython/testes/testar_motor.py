@@ -17,7 +17,8 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from certificados import caminhos, coordenadores, gerador, historico, horas, planilhas, textos  # noqa: E402
+from certificados import (caminhos, coordenadores, economia, gerador, historico, horas, painel,  # noqa: E402
+                          planilhas, textos)
 from testes import amostras  # noqa: E402
 
 TESTES = []
@@ -300,11 +301,60 @@ def historico_de_envios():
             pass
         sit = historico.situacao(locais, cursos)
         igual([m.rotulo for m in sit[cardio.linha]], ["Mar26", "Abr26"])
+        igual(sit[cardio.linha][0].pdfs, 1)
+        assert sit[cardio.linha][1].pdfs == rel.total_gerados > 0, (sit[cardio.linha][1].pdfs, rel.total_gerados)
         igual(sit[cursos[1].linha], [])
         igual(historico.meses_conhecidos(sit), ["04.26", "03.26"])
         igual(historico.rotulo_mes("10.26"), "Out26")
     finally:
         shutil.rmtree(raiz, ignore_errors=True)
+
+
+@teste
+def painel_da_tela_inicial():
+    from datetime import date
+    igual(painel.meses_do_semestre("2026.2"), ["09.26", "10.26", "11.26", "12.26", "01.27", "02.27"])
+    igual(painel.meses_do_semestre("2026-5"), ["03.26", "04.26", "05.26", "06.26", "07.26", "08.26"])
+    igual(painel.meses_do_semestre("Planilha1", hoje=date(2027, 1, 10))[0], "09.26")
+    meses = painel.meses_do_semestre("2026.2")
+    igual(painel.mes_padrao(meses, hoje=date(2026, 10, 22)), "10.26")
+    igual(painel.mes_padrao(meses, hoje=date(2027, 5, 1)), "02.27")
+    igual(painel.mes_padrao(meses, hoje=date(2026, 7, 1)), "09.26")
+    igual((painel.curto("10.26"), painel.longo("01.27")), ("Out", "Janeiro/27"))
+    assert painel.ja_passou("10.26", hoje=date(2026, 10, 1)) and not painel.ja_passou("11.26", hoje=date(2026, 10, 31))
+    raiz, locais = _ambiente()
+    try:
+        cursos = planilhas.ler_cursos_da_mestre(locais.planilha_mestre, "2026-5")
+        cardio = cursos[0]
+        planilha = caminhos.localizar_planilha_do_curso(locais.raiz_onedrive, cardio.posgrad, cardio.unidade, "2026-5")
+        esperado = len(planilhas.ler_dados_da_planilha(planilha, ["Abril26"]).abas[0].registros)
+        igual(planilhas.contar_certificados_do_mes(planilha, "04.26"), esperado)
+        igual(planilhas.contar_certificados_do_mes(planilha, "06.26"), 0)
+        cache = os.path.join(raiz, "contagem.json")
+        contagem = painel.contar_previstos(locais, cursos, "2026-5", "04.26", arquivo=cache)
+        igual(contagem[cardio.linha], esperado)
+        assert os.path.isfile(cache)
+        igual(painel.contar_previstos(locais, cursos, "2026-5", "04.26", arquivo=cache), contagem)   # do cache
+    finally:
+        shutil.rmtree(raiz, ignore_errors=True)
+
+
+@teste
+def tempo_economizado():
+    pasta = tempfile.mkdtemp()
+    try:
+        arquivo = os.path.join(pasta, "tempo.json")
+        igual(economia.resumo(arquivo).rodadas, 0)
+        assert economia.registrar(23, 240, arquivo)
+        assert economia.registrar(10, 100, arquivo)
+        assert not economia.registrar(0, 50, arquivo)
+        r = economia.resumo(arquivo)
+        igual((r.rodadas, r.certificados, r.programa), (2, 33, 340.0))
+        igual(r.manual, 33 * 693)
+        igual(r.economizado, 33 * 693 - 340)
+        igual((economia.duracao(3725), economia.duracao(95), economia.duracao(7)), ("1 h 02 min", "1 min 35 s", "7 s"))
+    finally:
+        shutil.rmtree(pasta, ignore_errors=True)
 
 
 def geracao_com_pdf_de_verdade(pasta_saida):

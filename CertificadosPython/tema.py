@@ -33,8 +33,12 @@ OK_FUNDO = "#183d33"
 AVISO = "#f5cc72"
 AVISO_FUNDO = "#44361a"
 ERRO = "#ff8f87"
+ERRO_FUNDO = "#4a2226"
 UNIDADE = "#cdc1ff"
 UNIDADE_FUNDO = "#3a2f66"
+CERTIFICADOS = "#9d85ff"          # rosca dos certificados
+MARCADO = "#2e2748"               # linha marcada na tabela de cursos
+MARCADO_HOVER = "#3a3260"
 
 FAIXA_TESTE, FAIXA_TESTE_TEXTO = "#e9b949", "#1c1c1c"
 FAIXA_OFICIAL, FAIXA_OFICIAL_TEXTO = "#c23a31", "#ffffff"
